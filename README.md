@@ -1,6 +1,6 @@
 # gympass
 
-Instalar Node.js y Android Studio (emulador de android) o usar expo app
+Instalar Node.js y Android Studio (emulador de android) o usar ExpoGo
 
 npm install
 
