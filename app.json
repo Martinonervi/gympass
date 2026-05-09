@@ -21,7 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.franserr286.gympass"
+      "package": "com.grupo9.gympass"
     },
     "web": {
       "favicon": "./assets/favicon.png"

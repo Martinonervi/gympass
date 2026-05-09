@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "572982171612",
+    "project_id": "gympass-c6310",
+    "storage_bucket": "gympass-c6310.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:572982171612:android:fcb9964c3282115a086119",
+        "android_client_info": {
+          "package_name": "com.grupo9.gympass"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJfsHMwBwdNo3VC56tkdFsSIFdtikNIXs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
