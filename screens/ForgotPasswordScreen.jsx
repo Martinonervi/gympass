@@ -34,7 +34,10 @@ export default function ForgotPasswordScreen({ navigation }) {
 
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      Alert.alert("Correo enviado", "Revisá tu casilla para recuperar la contraseña.");
+      Alert.alert(
+        "Solicitud recibida",
+        "Si el email está registrado, te enviaremos un correo para recuperar la contraseña."
+      );
       navigation.goBack();
     } catch (error) {
       console.log(error);

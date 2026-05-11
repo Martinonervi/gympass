@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
   bg: "#0f1520",
@@ -29,6 +30,25 @@ const COLORS = {
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  function redirectByRole(rol) {
+    if (rol === "usuario") {
+      navigation.replace("Tabs");
+      return;
+    }
+
+    if (rol === "gimnasio") {
+      navigation.replace("GymOwnerHome");
+      return;
+    }
+
+    if (rol === "empleador") {
+      navigation.replace("EmployerHome");
+      return;
+    }
+
+    Alert.alert("Error", "El usuario no tiene un rol válido.");
+  }
 
   async function handleLogin() {
     const cleanEmail = email.trim().toLowerCase();
@@ -47,9 +67,39 @@ export default function LoginScreen({ navigation }) {
         cleanPassword.length
       );
 
-      await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      /*
+        1) Iniciamos sesión con Firebase Authentication.
+        Esto valida email y contraseña.
+      */
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        cleanPassword
+      );
 
-      navigation.replace("Tabs");
+      const user = userCredential.user;
+
+      /*
+        2) Buscamos el perfil del usuario en Firestore.
+        Ahí está guardado el rol que elegimos en el registro.
+      */
+      const userDocRef = doc(db, "usuarios", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        Alert.alert(
+          "Perfil no encontrado",
+          "El usuario existe en Authentication, pero no tiene perfil guardado en Firestore."
+        );
+        return;
+      }
+
+      const userData = userDoc.data();
+
+      /*
+        3) Redirigimos según el rol.
+      */
+      redirectByRole(userData.rol);
     } catch (error) {
       console.log("Error login:", error.code, error.message);
 
@@ -74,6 +124,11 @@ export default function LoginScreen({ navigation }) {
       if (error.code === "auth/too-many-requests") {
         message =
           "Se hicieron muchos intentos. Esperá un momento y probá de nuevo.";
+      }
+
+      if (error.code === "permission-denied") {
+        message =
+          "No tenés permisos para leer el perfil del usuario en Firestore. Revisá las reglas.";
       }
 
       Alert.alert("Error al iniciar sesión", message);

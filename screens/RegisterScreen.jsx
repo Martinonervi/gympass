@@ -33,22 +33,84 @@ const ROLES = [
 
 export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState("usuario");
+
+  // Datos comunes
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // Datos para dueño de gimnasio
+  const [nombreGimnasio, setNombreGimnasio] = useState("");
+  const [cuitGimnasio, setCuitGimnasio] = useState("");
+  const [direccionGimnasio, setDireccionGimnasio] = useState("");
+
+  // Datos para empleador
+  const [razonSocial, setRazonSocial] = useState("");
+  const [cuitEmpleador, setCuitEmpleador] = useState("");
+  const [contactoEmpleador, setContactoEmpleador] = useState("");
+
+  function redirectByRole() {
+    if (role === "usuario") {
+      navigation.replace("Tabs");
+      return;
+    }
+
+    if (role === "gimnasio") {
+      navigation.replace("GymOwnerHome");
+      return;
+    }
+
+    if (role === "empleador") {
+      navigation.replace("EmployerHome");
+      return;
+    }
+
+    navigation.replace("Tabs");
+  }
+
+  function validateRoleFields() {
+    if (role === "gimnasio") {
+      if (
+        !nombreGimnasio.trim() ||
+        !cuitGimnasio.trim() ||
+        !direccionGimnasio.trim()
+      ) {
+        Alert.alert(
+          "Campos incompletos",
+          "Completá nombre del gimnasio, CUIT y dirección."
+        );
+        return false;
+      }
+    }
+
+    if (role === "empleador") {
+      if (
+        !razonSocial.trim() ||
+        !cuitEmpleador.trim() ||
+        !contactoEmpleador.trim()
+      ) {
+        Alert.alert(
+          "Campos incompletos",
+          "Completá razón social, CUIT y contacto."
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   async function handleRegister() {
     const cleanNombre = nombre.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Validamos que los campos básicos estén completos antes de llamar a Firebase
+    // Validamos datos comunes
     if (!cleanNombre || !cleanEmail || !cleanPassword) {
       Alert.alert("Campos incompletos", "Completá nombre, email y contraseña.");
       return;
     }
 
-    // Firebase pide mínimo 6 caracteres para contraseñas con email/password
     if (cleanPassword.length < 6) {
       Alert.alert(
         "Contraseña inválida",
@@ -57,17 +119,34 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
+    const cantidadNumeros = (cleanPassword.match(/\d/g) || []).length;
+    if (cantidadNumeros < 2) {
+    Alert.alert(
+        "Contraseña inválida",
+        "La contraseña debe tener al menos 2 números."
+    );
+    return;
+}
+
+
+    // Validamos datos específicos según rol
+    if (!validateRoleFields()) {
+      return;
+    }
+
     try {
       console.log(
         "Registrando con:",
         cleanEmail,
+        "rol:",
+        role,
         "password length:",
         cleanPassword.length
       );
 
       /*
         1) Creamos el usuario en Firebase Authentication.
-        Esto maneja email, contraseña, uid y sesión.
+        Esto guarda email, contraseña, uid y sesión.
       */
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -78,8 +157,8 @@ export default function RegisterScreen({ navigation }) {
       const user = userCredential.user;
 
       /*
-        2) Guardamos los datos propios de nuestra app en Firestore.
-        Usamos el mismo uid del usuario como id del documento.
+        2) Guardamos datos comunes en usuarios/{uid}.
+        Esta colección sirve para saber quién es el usuario y qué rol tiene.
       */
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
@@ -90,10 +169,44 @@ export default function RegisterScreen({ navigation }) {
         actualizadoEn: serverTimestamp(),
       });
 
+      /*
+        3) Si el usuario es dueño de gimnasio, guardamos datos específicos
+        en gimnasios/{uid}.
+      */
+      if (role === "gimnasio") {
+        await setDoc(doc(db, "gimnasios", user.uid), {
+          duenioId: user.uid,
+          nombreResponsable: cleanNombre,
+          email: cleanEmail,
+          nombreGimnasio: nombreGimnasio.trim(),
+          cuit: cuitGimnasio.trim(),
+          direccion: direccionGimnasio.trim(),
+          estado: "pendiente_validacion",
+          creadoEn: serverTimestamp(),
+          actualizadoEn: serverTimestamp(),
+        });
+      }
+
+      /*
+        4) Si el usuario es empleador, guardamos datos específicos
+        en empleadores/{uid}.
+      */
+      if (role === "empleador") {
+        await setDoc(doc(db, "empleadores", user.uid), {
+          empleadorId: user.uid,
+          nombreContacto: cleanNombre,
+          email: cleanEmail,
+          razonSocial: razonSocial.trim(),
+          cuit: cuitEmpleador.trim(),
+          contacto: contactoEmpleador.trim(),
+          creadoEn: serverTimestamp(),
+          actualizadoEn: serverTimestamp(),
+        });
+      }
+
       Alert.alert("Cuenta creada", `Se creó la cuenta como ${role}.`);
 
-      // Usamos replace para que no pueda volver al registro con el botón atrás
-      navigation.replace("Tabs");
+      redirectByRole();
     } catch (error) {
       console.log("Error register:", error.code, error.message);
 
@@ -113,7 +226,7 @@ export default function RegisterScreen({ navigation }) {
 
       if (error.code === "permission-denied") {
         message =
-          "No tenés permisos para guardar el usuario en Firestore. Revisá las reglas o pedile acceso al dueño del proyecto.";
+          "No tenés permisos para guardar datos en Firestore. Revisá las reglas.";
       }
 
       Alert.alert("Error al registrarse", message);
@@ -159,10 +272,24 @@ export default function RegisterScreen({ navigation }) {
             ))}
           </View>
 
-          <Text style={styles.label}>Nombre</Text>
+          <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
+
+          <Text style={styles.label}>
+            {role === "usuario"
+              ? "Nombre"
+              : role === "gimnasio"
+              ? "Nombre del responsable"
+              : "Nombre del contacto"}
+          </Text>
           <TextInput
             style={styles.input}
-            placeholder="Nombre o razón social"
+            placeholder={
+              role === "usuario"
+                ? "Tu nombre"
+                : role === "gimnasio"
+                ? "Nombre del responsable"
+                : "Nombre del contacto"
+            }
             placeholderTextColor={COLORS.textMuted}
             value={nombre}
             onChangeText={setNombre}
@@ -188,6 +315,74 @@ export default function RegisterScreen({ navigation }) {
             onChangeText={setPassword}
             secureTextEntry
           />
+
+          {role === "gimnasio" && (
+            <>
+              <Text style={styles.sectionTitle}>Datos del gimnasio</Text>
+
+              <Text style={styles.label}>Nombre del gimnasio</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Gimnasio Central"
+                placeholderTextColor={COLORS.textMuted}
+                value={nombreGimnasio}
+                onChangeText={setNombreGimnasio}
+              />
+
+              <Text style={styles.label}>CUIT</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="CUIT del gimnasio"
+                placeholderTextColor={COLORS.textMuted}
+                value={cuitGimnasio}
+                onChangeText={setCuitGimnasio}
+                keyboardType="numeric"
+              />
+
+              <Text style={styles.label}>Dirección</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Dirección del gimnasio"
+                placeholderTextColor={COLORS.textMuted}
+                value={direccionGimnasio}
+                onChangeText={setDireccionGimnasio}
+              />
+            </>
+          )}
+
+          {role === "empleador" && (
+            <>
+              <Text style={styles.sectionTitle}>Datos de la empresa</Text>
+
+              <Text style={styles.label}>Razón social</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Razón social"
+                placeholderTextColor={COLORS.textMuted}
+                value={razonSocial}
+                onChangeText={setRazonSocial}
+              />
+
+              <Text style={styles.label}>CUIT</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="CUIT de la empresa"
+                placeholderTextColor={COLORS.textMuted}
+                value={cuitEmpleador}
+                onChangeText={setCuitEmpleador}
+                keyboardType="numeric"
+              />
+
+              <Text style={styles.label}>Contacto</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Teléfono o email de contacto"
+                placeholderTextColor={COLORS.textMuted}
+                value={contactoEmpleador}
+                onChangeText={setContactoEmpleador}
+              />
+            </>
+          )}
 
           <TouchableOpacity style={styles.button} onPress={handleRegister}>
             <Text style={styles.buttonText}>Crear cuenta</Text>
@@ -228,6 +423,13 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  sectionTitle: {
+    color: COLORS.green,
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 20,
+    marginBottom: 6,
   },
   label: {
     color: COLORS.text,
