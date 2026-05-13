@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  Alert,
+  Animated,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -27,6 +29,10 @@ const COLORS = {
   text: "#ffffff",
   textMuted: "#94a3b8",
   input: "#111827",
+  error: "#ef4444",
+  errorDark: "#7f1d1d",
+  success: "#22c55e",
+  successDark: "#14532d",
 };
 
 const ROLES = [
@@ -35,8 +41,84 @@ const ROLES = [
   { label: "Empleador", value: "empleador" },
 ];
 
+// ─── Snackbar component ───────────────────────────────────────────────────────
+function Snackbar({ message, type = "error", visible }) {
+  const translateY = useRef(new Animated.Value(100)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 10,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 100,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const isSuccess = type === "success";
+
+  return (
+    <Animated.View
+      style={[
+        styles.snackbar,
+        isSuccess ? styles.snackbarSuccess : styles.snackbarError,
+        { transform: [{ translateY }], opacity },
+      ]}
+      pointerEvents="none"
+    >
+      <Text style={styles.snackbarIcon}>{isSuccess ? "✓" : "✕"}</Text>
+      <Text style={styles.snackbarText}>{message}</Text>
+    </Animated.View>
+  );
+}
+
+// ─── Hook para manejar el snackbar ────────────────────────────────────────────
+function useSnackbar() {
+  const [snackbar, setSnackbar] = useState({
+    visible: false,
+    message: "",
+    type: "error",
+  });
+  const timerRef = useRef(null);
+
+  function showSnackbar(message, type = "error", duration = 3500) {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSnackbar({ visible: true, message, type });
+    timerRef.current = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, visible: false }));
+    }, duration);
+  }
+
+  return { snackbar, showSnackbar };
+}
+
+// ─── RegisterScreen ───────────────────────────────────────────────────────────
 export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState("usuario");
+  const [loading, setLoading] = useState(false);
+  const { snackbar, showSnackbar } = useSnackbar();
 
   // Datos comunes
   const [nombre, setNombre] = useState("");
@@ -61,17 +143,14 @@ export default function RegisterScreen({ navigation }) {
       navigation.replace("Tabs");
       return;
     }
-
     if (role === "gimnasio") {
       navigation.replace("GymOwnerHome");
       return;
     }
-
     if (role === "empleador") {
       navigation.replace("EmployerHome");
       return;
     }
-
     navigation.replace("Tabs");
   }
 
@@ -84,8 +163,7 @@ export default function RegisterScreen({ navigation }) {
         !direccionGimnasio.trim() ||
         !contactoGimnasio.trim()
       ) {
-        Alert.alert(
-          "Campos incompletos",
+        showSnackbar(
           "Completá nombre del gimnasio, razón social, CUIT, dirección y contacto."
         );
         return false;
@@ -99,8 +177,7 @@ export default function RegisterScreen({ navigation }) {
         !cuitEmpleador.trim() ||
         !contactoEmpleador.trim()
       ) {
-        Alert.alert(
-          "Campos incompletos",
+        showSnackbar(
           "Completá nombre de la empresa, razón social, CUIT y contacto."
         );
         return false;
@@ -115,26 +192,22 @@ export default function RegisterScreen({ navigation }) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Validamos datos comunes
     if (!cleanNombre || !cleanEmail || !cleanPassword) {
-      Alert.alert("Campos incompletos", "Completá nombre, email y contraseña.");
+      showSnackbar("Completá nombre, email y contraseña.");
       return;
     }
 
     const cantidadNumeros = (cleanPassword.match(/\d/g) || []).length;
     if (cleanPassword.length < 6 || cantidadNumeros < 2) {
-      Alert.alert(
-        "Contraseña inválida",
+      showSnackbar(
         "La contraseña debe tener al menos 6 caracteres y 2 números."
       );
       return;
     }
 
-    // Validamos datos específicos según rol
-    if (!validateRoleFields()) {
-      return;
-    }
+    if (!validateRoleFields()) return;
 
+    setLoading(true);
     try {
       console.log(
         "Registrando con:",
@@ -145,10 +218,6 @@ export default function RegisterScreen({ navigation }) {
         cleanPassword.length
       );
 
-      /*
-        1) Creamos el usuario en Firebase Authentication.
-        Esto guarda email, contraseña, uid y sesión.
-      */
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         cleanEmail,
@@ -159,10 +228,6 @@ export default function RegisterScreen({ navigation }) {
 
       await sendEmailVerification(user);
 
-      /*
-        2) Guardamos datos comunes en usuarios/{uid}.
-        Esta colección sirve para saber quién es el usuario y qué rol tiene.
-      */
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
         nombre: cleanNombre,
@@ -172,10 +237,6 @@ export default function RegisterScreen({ navigation }) {
         actualizadoEn: serverTimestamp(),
       });
 
-      /*
-        3) Si el usuario es dueño de gimnasio, guardamos datos específicos
-        en gimnasios/{uid}.
-      */
       if (role === "gimnasio") {
         await setDoc(doc(db, "gimnasios", user.uid), {
           duenioId: user.uid,
@@ -192,10 +253,6 @@ export default function RegisterScreen({ navigation }) {
         });
       }
 
-      /*
-        4) Si el usuario es empleador, guardamos datos específicos
-        en empleadores/{uid}.
-      */
       if (role === "empleador") {
         await setDoc(doc(db, "empleadores", user.uid), {
           empleadorId: user.uid,
@@ -211,14 +268,15 @@ export default function RegisterScreen({ navigation }) {
         });
       }
 
-      Alert.alert(
-        "Cuenta creada",
-        `Se creó la cuenta como ${role}. Revisá tu casilla de correo para verificar tu email.`
+      showSnackbar(
+        `Cuenta creada como ${role}. Revisá tu casilla (o la carpeta de spam) para verificar tu email.`,
+        "success",
+        5000
       );
 
       await signOut(auth);
-
-      navigation.replace("Login");
+      setLoading(false);
+      // signOut dispara onAuthStateChanged en App.js → navega a Login automáticamente
     } catch (error) {
       console.log("Error register:", error.code, error.message);
 
@@ -227,21 +285,19 @@ export default function RegisterScreen({ navigation }) {
       if (error.code === "auth/email-already-in-use") {
         message = "Ese email ya está registrado.";
       }
-
       if (error.code === "auth/invalid-email") {
         message = "El email no es válido.";
       }
-
       if (error.code === "auth/weak-password") {
         message = "La contraseña es demasiado débil.";
       }
-
       if (error.code === "permission-denied") {
         message =
-          "No tenés permisos para guardar datos en Firestore. Revisá las reglas.";
+          "No tenés permisos para guardar datos. Revisá las reglas de Firestore.";
       }
 
-      Alert.alert("Error al registrarse", message);
+      showSnackbar(message);
+      setLoading(false);
     }
   }
 
@@ -250,8 +306,9 @@ export default function RegisterScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>← Volver</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
+          <Text style={styles.back}>Volver</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Crear cuenta</Text>
@@ -367,10 +424,11 @@ export default function RegisterScreen({ navigation }) {
                 placeholder="Teléfono de contacto"
                 placeholderTextColor={COLORS.textMuted}
                 value={contactoGimnasio}
-                onChangeText={(text) => setContactoGimnasio(text.replace(/\D/g, ""))}
+                onChangeText={(text) =>
+                  setContactoGimnasio(text.replace(/\D/g, ""))
+                }
                 keyboardType="numeric"
               />
-
             </>
           )}
 
@@ -412,17 +470,34 @@ export default function RegisterScreen({ navigation }) {
                 placeholder="Teléfono de contacto"
                 placeholderTextColor={COLORS.textMuted}
                 value={contactoEmpleador}
-                onChangeText={(text) => setContactoEmpleador(text.replace(/\D/g, ""))}
+                onChangeText={(text) =>
+                  setContactoEmpleador(text.replace(/\D/g, ""))
+                }
                 keyboardType="numeric"
               />
             </>
           )}
 
-          <TouchableOpacity style={styles.button} onPress={handleRegister}>
-            <Text style={styles.buttonText}>Crear cuenta</Text>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Crear cuenta</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Snackbar — fuera del ScrollView para que quede fijo al fondo */}
+      <Snackbar
+        message={snackbar.message}
+        type={snackbar.type}
+        visible={snackbar.visible}
+      />
     </SafeAreaView>
   );
 }
@@ -436,10 +511,16 @@ const styles = StyleSheet.create({
     padding: 22,
     paddingBottom: 40,
   },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 24,
+    alignSelf: "flex-start",
+  },
   back: {
     color: COLORS.green,
     fontSize: 15,
-    marginBottom: 24,
   },
   title: {
     color: COLORS.text,
@@ -509,9 +590,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 22,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: COLORS.text,
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  // ── Snackbar ──────────────────────────────────────────────────────────────
+  snackbar: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  snackbarError: {
+    backgroundColor: "#1f0a0a",
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  snackbarSuccess: {
+    backgroundColor: "#0a1f0e",
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  snackbarIcon: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  snackbarText: {
+    color: COLORS.text,
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });

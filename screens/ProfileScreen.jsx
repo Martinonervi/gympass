@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,14 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  Alert,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signOut, reload } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import { useNavigation } from "@react-navigation/native";
 
 const COLORS = {
   bg: "#0f1520",
@@ -27,9 +28,85 @@ const COLORS = {
   red: "#ef4444",
 };
 
-export default function ProfileScreen({ navigation }) {
+// ─── Snackbar ─────────────────────────────────────────────────────────────────
+function Snackbar({ message, type = "error", visible }) {
+  const translateY = useRef(new Animated.Value(100)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 10,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 100,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const isSuccess = type === "success";
+
+  return (
+    <Animated.View
+      style={[
+        styles.snackbar,
+        isSuccess ? styles.snackbarSuccess : styles.snackbarError,
+        { transform: [{ translateY }], opacity },
+      ]}
+      pointerEvents="none"
+    >
+      <Text style={styles.snackbarIcon}>{isSuccess ? "✓" : "✕"}</Text>
+      <Text style={styles.snackbarText}>{message}</Text>
+    </Animated.View>
+  );
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+function useSnackbar() {
+  const [snackbar, setSnackbar] = useState({
+    visible: false,
+    message: "",
+    type: "error",
+  });
+  const timerRef = useRef(null);
+
+  function showSnackbar(message, type = "error", duration = 3500) {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSnackbar({ visible: true, message, type });
+    timerRef.current = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, visible: false }));
+    }, duration);
+  }
+
+  return { snackbar, showSnackbar };
+}
+
+// ─── ProfileScreen ────────────────────────────────────────────────────────────
+export default function ProfileScreen({ setIsSignedIn }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { snackbar, showSnackbar } = useSnackbar();
+  const navigation = useNavigation();
 
   const [rol, setRol] = useState("");
   const [nombre, setNombre] = useState("");
@@ -92,7 +169,6 @@ export default function ProfileScreen({ navigation }) {
 
             if (gymDocSnap.exists()) {
               const gymData = gymDocSnap.data();
-
               setNombreGimnasio(gymData.nombreGimnasio || "");
               setRazonSocialGimnasio(gymData.razonSocial || "");
               setCuitGimnasio(gymData.cuit || "");
@@ -105,7 +181,6 @@ export default function ProfileScreen({ navigation }) {
 
             if (empDocSnap.exists()) {
               const empData = empDocSnap.data();
-
               setNombreEmpresa(empData.nombreEmpresa || "");
               setRazonSocial(empData.razonSocial || "");
               setCuitEmpleador(empData.cuit || "");
@@ -114,7 +189,7 @@ export default function ProfileScreen({ navigation }) {
           }
         }
       } catch (error) {
-        Alert.alert("Error", "Hubo un problema al cargar los datos.");
+        showSnackbar("Hubo un problema al cargar los datos.");
         console.error(error);
       } finally {
         setLoading(false);
@@ -128,7 +203,7 @@ export default function ProfileScreen({ navigation }) {
     const cleanNombre = nombre.trim();
 
     if (!cleanNombre) {
-      Alert.alert("Error", "El campo nombre es obligatorio.");
+      showSnackbar("El campo nombre es obligatorio.");
       return;
     }
 
@@ -140,8 +215,7 @@ export default function ProfileScreen({ navigation }) {
         !direccion.trim() ||
         !contactoGimnasio.trim()
       ) {
-        Alert.alert(
-          "Error",
+        showSnackbar(
           "Completá nombre del gimnasio, razón social, CUIT, dirección y teléfono."
         );
         return;
@@ -155,8 +229,7 @@ export default function ProfileScreen({ navigation }) {
         !cuitEmpleador.trim() ||
         !contacto.trim()
       ) {
-        Alert.alert(
-          "Error",
+        showSnackbar(
           "Completá nombre de la empresa, razón social, CUIT y teléfono."
         );
         return;
@@ -168,19 +241,13 @@ export default function ProfileScreen({ navigation }) {
 
       const user = auth.currentUser;
 
-      if (!user) {
-        throw new Error("No hay usuario autenticado.");
-      }
+      if (!user) throw new Error("No hay usuario autenticado.");
 
       const userDocRef = doc(db, "usuarios", user.uid);
-
-      await updateDoc(userDocRef, {
-        nombre: cleanNombre,
-      });
+      await updateDoc(userDocRef, { nombre: cleanNombre });
 
       if (rol === "gimnasio") {
         const gymDocRef = doc(db, "gimnasios", user.uid);
-
         await updateDoc(gymDocRef, {
           nombreGimnasio: nombreGimnasio.trim(),
           razonSocial: razonSocialGimnasio.trim(),
@@ -190,7 +257,6 @@ export default function ProfileScreen({ navigation }) {
         });
       } else if (rol === "empleador") {
         const empDocRef = doc(db, "empleadores", user.uid);
-
         await updateDoc(empDocRef, {
           nombreEmpresa: nombreEmpresa.trim(),
           razonSocial: razonSocial.trim(),
@@ -199,9 +265,9 @@ export default function ProfileScreen({ navigation }) {
         });
       }
 
-      Alert.alert("Éxito", "Tus datos se han actualizado correctamente.");
+      showSnackbar("Tus datos se actualizaron correctamente.", "success");
     } catch (error) {
-      Alert.alert("Error", "No se pudieron actualizar los datos.");
+      showSnackbar("No se pudieron actualizar los datos.");
       console.error(error);
     } finally {
       setSaving(false);
@@ -211,9 +277,10 @@ export default function ProfileScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      navigation.replace("Login");
+      // onAuthStateChanged en App.js detecta el logout y cambia la navegación automáticamente
+      setIsSignedIn(false);
     } catch (error) {
-      Alert.alert("Error", "No se pudo cerrar sesión.");
+      showSnackbar("No se pudo cerrar sesión.");
       console.error(error);
     }
   };
@@ -360,7 +427,7 @@ export default function ProfileScreen({ navigation }) {
           )}
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, saving && styles.buttonDisabled]}
             onPress={handleUpdate}
             disabled={saving}
           >
@@ -385,6 +452,13 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Snackbar — fuera del ScrollView para que quede fijo al fondo */}
+      <Snackbar
+        message={snackbar.message}
+        type={snackbar.type}
+        visible={snackbar.visible}
+      />
     </SafeAreaView>
   );
 }
@@ -452,6 +526,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 22,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: COLORS.text,
     fontSize: 16,
@@ -482,5 +559,45 @@ const styles = StyleSheet.create({
     color: COLORS.red,
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  // ── Snackbar ──────────────────────────────────────────────────────────────
+  snackbar: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  snackbarError: {
+    backgroundColor: "#1f0a0a",
+    borderWidth: 1,
+    borderColor: COLORS.red,
+  },
+  snackbarSuccess: {
+    backgroundColor: "#0a1f0e",
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  snackbarIcon: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  snackbarText: {
+    color: COLORS.text,
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });

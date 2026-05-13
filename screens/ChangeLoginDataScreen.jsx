@@ -19,6 +19,8 @@ import {
 } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 
 const COLORS = {
   bg: "#0f1520",
@@ -225,9 +227,11 @@ export default function ChangeLoginDataScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>← Volver</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
+          <Text style={styles.back}>Volver</Text>
         </TouchableOpacity>
+        
 
         <Text style={styles.title}>Datos de inicio de sesión</Text>
         <Text style={styles.subtitle}>
@@ -328,7 +332,6 @@ const styles = StyleSheet.create({
   back: {
     color: COLORS.green,
     fontSize: 15,
-    marginBottom: 24,
   },
   title: {
     color: COLORS.text,
@@ -388,5 +391,12 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 16,
     fontWeight: "700",
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 24,
+    alignSelf: "flex-start",
   },
 });

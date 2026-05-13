@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  Animated,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -27,27 +28,90 @@ const COLORS = {
   error: "#ef4444",
 };
 
-export default function LoginScreen({ navigation }) {
+// ─── Snackbar component ───────────────────────────────────────────────────────
+function Snackbar({ message, type = "error", visible }) {
+  const translateY = useRef(new Animated.Value(100)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 10,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 100,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const isSuccess = type === "success";
+
+  return (
+    <Animated.View
+      style={[
+        styles.snackbar,
+        isSuccess ? styles.snackbarSuccess : styles.snackbarError,
+        { transform: [{ translateY }], opacity },
+      ]}
+      pointerEvents="none"
+    >
+      <Text style={styles.snackbarIcon}>{isSuccess ? "✓" : "✕"}</Text>
+      <Text style={styles.snackbarText}>{message}</Text>
+    </Animated.View>
+  );
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+function useSnackbar() {
+  const [snackbar, setSnackbar] = useState({
+    visible: false,
+    message: "",
+    type: "error",
+  });
+  const timerRef = useRef(null);
+
+  function showSnackbar(message, type = "error", duration = 3500) {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSnackbar({ visible: true, message, type });
+    timerRef.current = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, visible: false }));
+    }, duration);
+  }
+
+  return { snackbar, showSnackbar };
+}
+
+// ─── LoginScreen ──────────────────────────────────────────────────────────────
+export default function LoginScreen({ navigation, setIsSignedIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { snackbar, showSnackbar } = useSnackbar();
 
   function redirectByRole(rol) {
-    if (rol === "usuario") {
-      navigation.replace("Tabs");
-      return;
-    }
-
-    if (rol === "gimnasio") {
-      navigation.replace("GymOwnerHome");
-      return;
-    }
-
-    if (rol === "empleador") {
-      navigation.replace("EmployerHome");
-      return;
-    }
-
-    Alert.alert("Error", "El usuario no tiene un rol válido.");
+    // Con renderizado condicional en App.js, solo necesitamos
+    // actualizar isSignedIn y React Navigation hace el resto automáticamente.
+    setIsSignedIn(true);
   }
 
   async function handleLogin() {
@@ -55,22 +119,14 @@ export default function LoginScreen({ navigation }) {
     const cleanPassword = password.trim();
 
     if (!cleanEmail || !cleanPassword) {
-      Alert.alert("Campos incompletos", "Ingresá email y contraseña.");
+      showSnackbar("Ingresá email y contraseña.");
       return;
     }
 
+    setLoading(true);
     try {
-      console.log(
-        "Login con:",
-        cleanEmail,
-        "password length:",
-        cleanPassword.length
-      );
+      console.log("Login con:", cleanEmail, "password length:", cleanPassword.length);
 
-      /*
-        1) Iniciamos sesión con Firebase Authentication.
-        Esto valida email y contraseña.
-      */
       const userCredential = await signInWithEmailAndPassword(
         auth,
         cleanEmail,
@@ -81,33 +137,25 @@ export default function LoginScreen({ navigation }) {
 
       if (!user.emailVerified) {
         await auth.signOut();
-        Alert.alert(
-          "Email no verificado",
-          "Por favor, abrí el link que te mandamos por correo para verificar tu cuenta antes de ingresar."
+        showSnackbar(
+          "Verificá tu cuenta antes de ingresar. Revisá tu correo (o la carpeta de spam).",
+          "error",
+          5000
         );
+        setLoading(false);
         return;
       }
 
-      /*
-        2) Buscamos el perfil del usuario en Firestore.
-        Ahí está guardado el rol que elegimos en el registro.
-      */
       const userDocRef = doc(db, "usuarios", user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        Alert.alert(
-          "Perfil no encontrado",
-          "El usuario existe en Authentication, pero no tiene perfil guardado en Firestore."
-        );
+        showSnackbar("Perfil no encontrado en Firestore.");
+        setLoading(false);
         return;
       }
 
       const userData = userDoc.data();
-
-      /*
-        3) Redirigimos según el rol.
-      */
       redirectByRole(userData.rol);
     } catch (error) {
       console.log("Error login:", error.code, error.message);
@@ -117,30 +165,24 @@ export default function LoginScreen({ navigation }) {
       if (error.code === "auth/invalid-email") {
         message = "El email no es válido.";
       }
-
       if (error.code === "auth/user-not-found") {
         message = "No existe un usuario con ese email.";
       }
-
       if (error.code === "auth/wrong-password") {
         message = "La contraseña es incorrecta.";
       }
-
       if (error.code === "auth/invalid-credential") {
         message = "El email o la contraseña son incorrectos.";
       }
-
       if (error.code === "auth/too-many-requests") {
-        message =
-          "Se hicieron muchos intentos. Esperá un momento y probá de nuevo.";
+        message = "Demasiados intentos. Esperá un momento y probá de nuevo.";
       }
-
       if (error.code === "permission-denied") {
-        message =
-          "No tenés permisos para leer el perfil del usuario en Firestore. Revisá las reglas.";
+        message = "No tenés permisos para leer el perfil. Revisá las reglas de Firestore.";
       }
 
-      Alert.alert("Error al iniciar sesión", message);
+      showSnackbar(message);
+      setLoading(false);
     }
   }
 
@@ -185,8 +227,16 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Ingresar</Text>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Ingresar</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate("Register")}>
@@ -197,6 +247,13 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Snackbar — fuera del KeyboardAvoidingView para que quede fijo al fondo */}
+      <Snackbar
+        message={snackbar.message}
+        type={snackbar.type}
+        visible={snackbar.visible}
+      />
     </SafeAreaView>
   );
 }
@@ -265,6 +322,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: COLORS.text,
     fontSize: 16,
@@ -278,5 +338,45 @@ const styles = StyleSheet.create({
   registerStrong: {
     color: COLORS.green,
     fontWeight: "700",
+  },
+
+  // ── Snackbar ──────────────────────────────────────────────────────────────
+  snackbar: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  snackbarError: {
+    backgroundColor: "#1f0a0a",
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  snackbarSuccess: {
+    backgroundColor: "#0a1f0e",
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  snackbarIcon: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  snackbarText: {
+    color: COLORS.text,
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });

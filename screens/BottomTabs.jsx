@@ -11,7 +11,7 @@ import ProfileScreen from './ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
-export default function BottomTabs({ theme }) {
+export default function BottomTabs({ theme, setIsSignedIn }) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -34,8 +34,10 @@ export default function BottomTabs({ theme }) {
         options={{ tabBarLabel: 'Explorar', tabBarIcon: ({ color }) => <Ionicons name="compass-outline" color={color} size={24} /> }} />
       <Tab.Screen name="PassTab" component={PassScreen}
         options={{ tabBarLabel: 'Mi Pase', tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode" color={color} size={24} /> }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen}
-        options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ color }) => <Ionicons name="person-outline" color={color} size={24} /> }} />
+      <Tab.Screen name="ProfileTab"
+        options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ color }) => <Ionicons name="person-outline" color={color} size={24} /> }}>
+          {props => <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }
