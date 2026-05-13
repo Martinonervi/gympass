@@ -10,7 +10,11 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut,
+} from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
@@ -153,6 +157,8 @@ export default function RegisterScreen({ navigation }) {
 
       const user = userCredential.user;
 
+      await sendEmailVerification(user);
+
       /*
         2) Guardamos datos comunes en usuarios/{uid}.
         Esta colección sirve para saber quién es el usuario y qué rol tiene.
@@ -205,9 +211,14 @@ export default function RegisterScreen({ navigation }) {
         });
       }
 
-      Alert.alert("Cuenta creada", `Se creó la cuenta como ${role}.`);
+      Alert.alert(
+        "Cuenta creada",
+        `Se creó la cuenta como ${role}. Revisá tu casilla de correo para verificar tu email.`
+      );
 
-      redirectByRole();
+      await signOut(auth);
+
+      navigation.replace("Login");
     } catch (error) {
       console.log("Error register:", error.code, error.message);
 

@@ -79,6 +79,15 @@ export default function LoginScreen({ navigation }) {
 
       const user = userCredential.user;
 
+      if (!user.emailVerified) {
+        await auth.signOut();
+        Alert.alert(
+          "Email no verificado",
+          "Por favor, abrí el link que te mandamos por correo para verificar tu cuenta antes de ingresar."
+        );
+        return;
+      }
+
       /*
         2) Buscamos el perfil del usuario en Firestore.
         Ahí está guardado el rol que elegimos en el registro.
