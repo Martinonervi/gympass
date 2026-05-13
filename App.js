@@ -11,6 +11,7 @@ import RegisterScreen from "./screens/RegisterScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import GymOwnerHomeScreen from "./screens/GymOwnerHomeScreen";
 import EmployerHomeScreen from "./screens/EmployerHomeScreen";
+import ChangeLoginDataScreen from "./screens/ChangeLoginDataScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -37,6 +38,10 @@ function App() {
 
           <Stack.Screen name="GymOwnerHome" component={GymOwnerHomeScreen} />
           <Stack.Screen name="EmployerHome" component={EmployerHomeScreen} />
+          <Stack.Screen
+            name="ChangeLoginData"
+            component={ChangeLoginDataScreen}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </PaperProvider>

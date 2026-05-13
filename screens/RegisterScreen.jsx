@@ -41,10 +41,13 @@ export default function RegisterScreen({ navigation }) {
 
   // Datos para dueño de gimnasio
   const [nombreGimnasio, setNombreGimnasio] = useState("");
+  const [razonSocialGimnasio, setRazonSocialGimnasio] = useState("");
   const [cuitGimnasio, setCuitGimnasio] = useState("");
   const [direccionGimnasio, setDireccionGimnasio] = useState("");
+  const [contactoGimnasio, setContactoGimnasio] = useState("");
 
   // Datos para empleador
+  const [nombreEmpresa, setNombreEmpresa] = useState("");
   const [razonSocial, setRazonSocial] = useState("");
   const [cuitEmpleador, setCuitEmpleador] = useState("");
   const [contactoEmpleador, setContactoEmpleador] = useState("");
@@ -72,12 +75,14 @@ export default function RegisterScreen({ navigation }) {
     if (role === "gimnasio") {
       if (
         !nombreGimnasio.trim() ||
+        !razonSocialGimnasio.trim() ||
         !cuitGimnasio.trim() ||
-        !direccionGimnasio.trim()
+        !direccionGimnasio.trim() ||
+        !contactoGimnasio.trim()
       ) {
         Alert.alert(
           "Campos incompletos",
-          "Completá nombre del gimnasio, CUIT y dirección."
+          "Completá nombre del gimnasio, razón social, CUIT, dirección y contacto."
         );
         return false;
       }
@@ -85,13 +90,14 @@ export default function RegisterScreen({ navigation }) {
 
     if (role === "empleador") {
       if (
+        !nombreEmpresa.trim() ||
         !razonSocial.trim() ||
         !cuitEmpleador.trim() ||
         !contactoEmpleador.trim()
       ) {
         Alert.alert(
           "Campos incompletos",
-          "Completá razón social, CUIT y contacto."
+          "Completá nombre de la empresa, razón social, CUIT y contacto."
         );
         return false;
       }
@@ -111,23 +117,14 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
-    if (cleanPassword.length < 6) {
+    const cantidadNumeros = (cleanPassword.match(/\d/g) || []).length;
+    if (cleanPassword.length < 6 || cantidadNumeros < 2) {
       Alert.alert(
         "Contraseña inválida",
-        "La contraseña debe tener al menos 6 caracteres."
+        "La contraseña debe tener al menos 6 caracteres y 2 números."
       );
       return;
     }
-
-    const cantidadNumeros = (cleanPassword.match(/\d/g) || []).length;
-    if (cantidadNumeros < 2) {
-    Alert.alert(
-        "Contraseña inválida",
-        "La contraseña debe tener al menos 2 números."
-    );
-    return;
-}
-
 
     // Validamos datos específicos según rol
     if (!validateRoleFields()) {
@@ -179,8 +176,10 @@ export default function RegisterScreen({ navigation }) {
           nombreResponsable: cleanNombre,
           email: cleanEmail,
           nombreGimnasio: nombreGimnasio.trim(),
+          razonSocial: razonSocialGimnasio.trim(),
           cuit: cuitGimnasio.trim(),
           direccion: direccionGimnasio.trim(),
+          contacto: contactoGimnasio.trim(),
           estado: "pendiente_validacion",
           creadoEn: serverTimestamp(),
           actualizadoEn: serverTimestamp(),
@@ -194,11 +193,13 @@ export default function RegisterScreen({ navigation }) {
       if (role === "empleador") {
         await setDoc(doc(db, "empleadores", user.uid), {
           empleadorId: user.uid,
-          nombreContacto: cleanNombre,
+          nombreResponsable: cleanNombre,
           email: cleanEmail,
+          nombreEmpresa: nombreEmpresa.trim(),
           razonSocial: razonSocial.trim(),
           cuit: cuitEmpleador.trim(),
           contacto: contactoEmpleador.trim(),
+          estado: "pendiente_validacion",
           creadoEn: serverTimestamp(),
           actualizadoEn: serverTimestamp(),
         });
@@ -275,20 +276,12 @@ export default function RegisterScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
 
           <Text style={styles.label}>
-            {role === "usuario"
-              ? "Nombre"
-              : role === "gimnasio"
-              ? "Nombre del responsable"
-              : "Nombre del contacto"}
+            {role === "usuario" ? "Nombre" : "Nombre del responsable"}
           </Text>
           <TextInput
             style={styles.input}
             placeholder={
-              role === "usuario"
-                ? "Tu nombre"
-                : role === "gimnasio"
-                ? "Nombre del responsable"
-                : "Nombre del contacto"
+              role === "usuario" ? "Tu nombre" : "Nombre del responsable"
             }
             placeholderTextColor={COLORS.textMuted}
             value={nombre}
@@ -309,7 +302,7 @@ export default function RegisterScreen({ navigation }) {
           <Text style={styles.label}>Contraseña</Text>
           <TextInput
             style={styles.input}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Mínimo 6 caracteres y 2 números"
             placeholderTextColor={COLORS.textMuted}
             value={password}
             onChangeText={setPassword}
@@ -323,10 +316,19 @@ export default function RegisterScreen({ navigation }) {
               <Text style={styles.label}>Nombre del gimnasio</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ej: Gimnasio Central"
+                placeholder="Ej: SportClub Palermo"
                 placeholderTextColor={COLORS.textMuted}
                 value={nombreGimnasio}
                 onChangeText={setNombreGimnasio}
+              />
+
+              <Text style={styles.label}>Razón social</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Razón social del gimnasio"
+                placeholderTextColor={COLORS.textMuted}
+                value={razonSocialGimnasio}
+                onChangeText={setRazonSocialGimnasio}
               />
 
               <Text style={styles.label}>CUIT</Text>
@@ -347,6 +349,17 @@ export default function RegisterScreen({ navigation }) {
                 value={direccionGimnasio}
                 onChangeText={setDireccionGimnasio}
               />
+
+              <Text style={styles.label}>Teléfono de contacto</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Teléfono de contacto"
+                placeholderTextColor={COLORS.textMuted}
+                value={contactoGimnasio}
+                onChangeText={(text) => setContactoGimnasio(text.replace(/\D/g, ""))}
+                keyboardType="numeric"
+              />
+
             </>
           )}
 
@@ -354,10 +367,19 @@ export default function RegisterScreen({ navigation }) {
             <>
               <Text style={styles.sectionTitle}>Datos de la empresa</Text>
 
+              <Text style={styles.label}>Nombre de la empresa</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre comercial de la empresa"
+                placeholderTextColor={COLORS.textMuted}
+                value={nombreEmpresa}
+                onChangeText={setNombreEmpresa}
+              />
+
               <Text style={styles.label}>Razón social</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Razón social"
+                placeholder="Razón social de la empresa"
                 placeholderTextColor={COLORS.textMuted}
                 value={razonSocial}
                 onChangeText={setRazonSocial}
@@ -373,13 +395,14 @@ export default function RegisterScreen({ navigation }) {
                 keyboardType="numeric"
               />
 
-              <Text style={styles.label}>Contacto</Text>
+              <Text style={styles.label}>Teléfono de contacto</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Teléfono o email de contacto"
+                placeholder="Teléfono de contacto"
                 placeholderTextColor={COLORS.textMuted}
                 value={contactoEmpleador}
-                onChangeText={setContactoEmpleador}
+                onChangeText={(text) => setContactoEmpleador(text.replace(/\D/g, ""))}
+                keyboardType="numeric"
               />
             </>
           )}
