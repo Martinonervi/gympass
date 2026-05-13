@@ -10,6 +10,13 @@ export default function GymOwnerHomeScreen({ navigation }) {
       </Text>
 
       <TouchableOpacity
+        style={[styles.button, { marginBottom: 12 }]}
+        onPress={() => navigation.navigate("Tabs", { screen: "ProfileTab" })}
+      >
+        <Text style={styles.buttonText}>Ir a Mi Perfil (Testing)</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.replace("Login")}
       >
