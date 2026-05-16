@@ -17,6 +17,13 @@ export default function GymOwnerHomeScreen({ navigation }) {
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[styles.button, { marginBottom: 12 }]}
+        onPress={() => navigation.navigate("ManageGymDetails")}
+      >
+        <Text style={styles.buttonText}>Detalles y fotos del gimnasio</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.replace("Login")}
       >
@@ -51,6 +58,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 22,
     borderRadius: 14,
+    width: "100%",
+    alignItems: "center",
   },
   buttonText: {
     color: "#ffffff",

@@ -10,6 +10,7 @@ import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import GymOwnerHomeScreen from "./screens/GymOwnerHomeScreen";
+import ManageGymDetailsScreen from "./screens/ManageGymDetailsScreen";
 import EmployerHomeScreen from "./screens/EmployerHomeScreen";
 import ChangeLoginDataScreen from "./screens/ChangeLoginDataScreen";
 import SplashScreen from "./screens/SplashScreen";
@@ -83,6 +84,7 @@ function App() {
               {() => <BottomTabs theme={currentTheme} setIsSignedIn={setIsSignedIn} />}
             </Stack.Screen>
             <Stack.Screen name="GymOwnerHome" component={GymOwnerHomeScreen} />
+            <Stack.Screen name="ManageGymDetails" component={ManageGymDetailsScreen} />
             <Stack.Screen name="EmployerHome" component={EmployerHomeScreen} />
             <Stack.Screen name="ChangeLoginData" component={ChangeLoginDataScreen} />
           </Stack.Navigator>
