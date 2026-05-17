@@ -75,10 +75,17 @@ export default function GymOwnerHomeScreen({ navigation }) {
       )}
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, { marginBottom: 12 }]}
         onPress={() => navigation.navigate("ManageGymDetails")}
       >
         <Text style={styles.buttonText}>Detalles y fotos del gimnasio</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate("ManageClasses")}
+      >
+        <Text style={styles.buttonText}>Clases</Text>
       </TouchableOpacity>
     </View>
   );
