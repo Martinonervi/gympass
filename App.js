@@ -5,15 +5,18 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { navigationRef } from "./navigationRef";
 import BottomTabs from "./screens/BottomTabs";
+import GymOwnerTabs from "./screens/GymOwnerTabs";
+import EmployerTabs from "./screens/EmployerTabs";
 
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
-import GymOwnerHomeScreen from "./screens/GymOwnerHomeScreen";
 import ManageGymDetailsScreen from "./screens/ManageGymDetailsScreen";
-import EmployerHomeScreen from "./screens/EmployerHomeScreen";
 import ChangeLoginDataScreen from "./screens/ChangeLoginDataScreen";
 import SplashScreen from "./screens/SplashScreen";
+import EditGymInfoScreen from "./screens/EditGymInfoScreen";
+import EditEmployerInfoScreen from "./screens/EditEmployerInfoScreen";
+import EditUserInfoScreen from "./screens/EditUserInfoScreen";
 
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -21,8 +24,8 @@ import { doc, getDoc } from "firebase/firestore";
 const Stack = createNativeStackNavigator();
 
 function getInitialRoute(role) {
-  if (role === "gimnasio") return "GymOwnerHome";
-  if (role === "empleador") return "EmployerHome";
+  if (role === "gimnasio") return "GymOwnerTabs";
+  if (role === "empleador") return "EmployerTabs";
   return "Tabs";
 }
 
@@ -77,15 +80,23 @@ function App() {
       >
         {isSignedIn ? (
           <Stack.Navigator
+            key={userRole}
             screenOptions={{ headerShown: false }}
             initialRouteName={getInitialRoute(userRole)}
           >
             <Stack.Screen name="Tabs">
               {() => <BottomTabs theme={currentTheme} setIsSignedIn={setIsSignedIn} />}
             </Stack.Screen>
-            <Stack.Screen name="GymOwnerHome" component={GymOwnerHomeScreen} />
+            <Stack.Screen name="GymOwnerTabs">
+              {() => <GymOwnerTabs theme={currentTheme} setIsSignedIn={setIsSignedIn} />}
+            </Stack.Screen>
+            <Stack.Screen name="EmployerTabs">
+              {() => <EmployerTabs theme={currentTheme} setIsSignedIn={setIsSignedIn} />}
+            </Stack.Screen>
             <Stack.Screen name="ManageGymDetails" component={ManageGymDetailsScreen} />
-            <Stack.Screen name="EmployerHome" component={EmployerHomeScreen} />
+            <Stack.Screen name="EditGymInfo" component={EditGymInfoScreen} />
+            <Stack.Screen name="EditEmployerInfo" component={EditEmployerInfoScreen} />
+            <Stack.Screen name="EditUserInfo" component={EditUserInfoScreen} />
             <Stack.Screen name="ChangeLoginData" component={ChangeLoginDataScreen} />
           </Stack.Navigator>
         ) : (

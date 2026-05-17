@@ -7,14 +7,13 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  ActivityIndicator,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { signOut, reload } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
-import { useNavigation } from "@react-navigation/native";
 
 const COLORS = {
   bg: "#0f1520",
@@ -25,10 +24,10 @@ const COLORS = {
   text: "#ffffff",
   textMuted: "#94a3b8",
   input: "#111827",
-  red: "#ef4444",
+  error: "#ef4444",
 };
 
-// ─── Snackbar ─────────────────────────────────────────────────────────────────
+// ─── Snackbar ────────────────────────────────────────────────────────────────
 function Snackbar({ message, type = "error", visible }) {
   const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -81,7 +80,6 @@ function Snackbar({ message, type = "error", visible }) {
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 function useSnackbar() {
   const [snackbar, setSnackbar] = useState({
     visible: false,
@@ -101,66 +99,34 @@ function useSnackbar() {
   return { snackbar, showSnackbar };
 }
 
-// ─── ProfileScreen ────────────────────────────────────────────────────────────
-//
-// Esta pantalla muestra SOLO los datos comunes a los 3 roles (datos de cuenta):
-//   - email (readonly)
-//   - cambiar datos de inicio de sesión
-//   - cerrar sesión
-//
-// Los datos específicos de cada rol viven en sus propias pantallas:
-//   - usuario   → EditUserInfo
-//   - gimnasio  → EditGymInfo
-//   - empleador → EditEmployerInfo
-//
-export default function ProfileScreen({ setIsSignedIn }) {
+// ─── EditUserInfoScreen ──────────────────────────────────────────────────────
+export default function EditUserInfoScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { snackbar, showSnackbar } = useSnackbar();
-  const navigation = useNavigation();
 
-  const [rol, setRol] = useState("");
-  const [email, setEmail] = useState("");
+  const [nombre, setNombre] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const user = auth.currentUser;
-
         if (!user) {
           setLoading(false);
           return;
         }
 
-        await reload(user);
+        const userRef = doc(db, "usuarios", user.uid);
+        const userSnap = await getDoc(userRef);
 
-        const currentUser = auth.currentUser;
-        const authEmail = currentUser?.email || user.email || "";
-
-        const userDocRef = doc(db, "usuarios", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          const currentRol = userData.rol || "usuario";
-
-          // Mantener email sincronizado con Auth si cambió.
-          if (authEmail && authEmail !== userData.email) {
-            await updateDoc(userDocRef, {
-              email: authEmail,
-              emailPendiente: null,
-              emailPendienteEn: null,
-            });
-          }
-
-          setRol(currentRol);
-          setEmail(authEmail || userData.email || "");
-        } else {
-          // Si todavía no existe el doc, igual mostramos el email de Auth.
-          setEmail(authEmail);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setNombre(data.nombre || "");
         }
+        // Si el doc no existe (caso raro), los campos quedan vacíos.
       } catch (error) {
-        showSnackbar("Hubo un problema al cargar los datos.");
-        console.error(error);
+        console.error("Error cargando usuario:", error);
+        showSnackbar("No se pudo cargar tu información.");
       } finally {
         setLoading(false);
       }
@@ -169,40 +135,55 @@ export default function ProfileScreen({ setIsSignedIn }) {
     fetchData();
   }, []);
 
-  function goToEditInfo() {
-    if (rol === "gimnasio") {
-      navigation.navigate("EditGymInfo");
+  async function handleSave() {
+    const user = auth.currentUser;
+    if (!user) {
+      showSnackbar("No hay un usuario autenticado.");
       return;
     }
-    if (rol === "empleador") {
-      navigation.navigate("EditEmployerInfo");
+
+    const cleanNombre = nombre.trim();
+    if (!cleanNombre) {
+      showSnackbar("El nombre es obligatorio.");
       return;
     }
-    navigation.navigate("EditUserInfo");
-  }
 
-  function getEditButtonLabel() {
-    if (rol === "gimnasio") return "Editar información del gimnasio";
-    if (rol === "empleador") return "Editar información de la empresa";
-    return "Editar mis datos";
-  }
-
-  const handleLogout = async () => {
+    setSaving(true);
     try {
-      await signOut(auth);
-      // onAuthStateChanged en App.js detecta el logout y cambia la navegación automáticamente
-      setIsSignedIn(false);
+      const userRef = doc(db, "usuarios", user.uid);
+
+      await setDoc(
+        userRef,
+        {
+          nombre: cleanNombre,
+          actualizadoEn: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      showSnackbar("Tus datos se guardaron.", "success");
+
+      setTimeout(() => {
+        navigation.goBack();
+      }, 800);
     } catch (error) {
-      showSnackbar("No se pudo cerrar sesión.");
-      console.error(error);
+      console.log("Error guardando usuario:", error.code, error.message);
+      let message = "No se pudo guardar la información.";
+      if (error.code === "permission-denied") {
+        message =
+          "No tenés permisos para guardar. Revisá las reglas de Firestore.";
+      }
+      showSnackbar(message);
+    } finally {
+      setSaving(false);
     }
-  };
+  }
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-        <View style={styles.center}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.green} />
         </View>
       </SafeAreaView>
@@ -214,39 +195,49 @@ export default function ProfileScreen({ setIsSignedIn }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Mi Perfil</Text>
-        <Text style={styles.subtitle}>Datos de tu cuenta.</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color={COLORS.green}
+          />
+          <Text style={styles.back}>Volver</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.title}>Mis datos</Text>
+        <Text style={styles.subtitle}>
+          Completá o actualizá tus datos personales.
+        </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.sectionTitle}>Datos personales</Text>
+
+          <Text style={styles.label}>Nombre</Text>
           <TextInput
-            style={[styles.input, styles.disabledInput]}
-            value={email}
-            editable={false}
-            placeholder="Tu email"
+            style={styles.input}
+            placeholder="Tu nombre"
             placeholderTextColor={COLORS.textMuted}
+            value={nombre}
+            onChangeText={setNombre}
           />
 
-          <TouchableOpacity style={styles.button} onPress={goToEditInfo}>
-            <Text style={styles.buttonText}>{getEditButtonLabel()}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.navigate("ChangeLoginData")}
+            style={[styles.button, saving && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={saving}
           >
-            <Text style={styles.secondaryButtonText}>
-              Cambiar datos de inicio de sesión
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+            {saving ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>Guardar</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Snackbar — fuera del ScrollView para que quede fijo al fondo */}
       <Snackbar
         message={snackbar.message}
         type={snackbar.type}
@@ -261,7 +252,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  center: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -270,9 +261,20 @@ const styles = StyleSheet.create({
     padding: 22,
     paddingBottom: 40,
   },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 24,
+    alignSelf: "flex-start",
+  },
+  back: {
+    color: COLORS.green,
+    fontSize: 15,
+  },
   title: {
     color: COLORS.text,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
   },
   subtitle: {
@@ -286,6 +288,12 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  sectionTitle: {
+    color: COLORS.green,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
   },
   label: {
     color: COLORS.text,
@@ -302,9 +310,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  disabledInput: {
-    opacity: 0.7,
-  },
   button: {
     backgroundColor: COLORS.greenDark,
     borderRadius: 14,
@@ -312,39 +317,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 22,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: COLORS.text,
     fontSize: 16,
     fontWeight: "700",
   },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: COLORS.green,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  secondaryButtonText: {
-    color: COLORS.green,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  logoutButton: {
-    borderWidth: 1,
-    borderColor: COLORS.red,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  logoutButtonText: {
-    color: COLORS.red,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  // ── Snackbar ──────────────────────────────────────────────────────────────
   snackbar: {
     position: "absolute",
     bottom: 30,
@@ -365,7 +345,7 @@ const styles = StyleSheet.create({
   snackbarError: {
     backgroundColor: "#1f0a0a",
     borderWidth: 1,
-    borderColor: COLORS.red,
+    borderColor: COLORS.error,
   },
   snackbarSuccess: {
     backgroundColor: "#0a1f0e",

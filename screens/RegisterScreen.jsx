@@ -120,80 +120,16 @@ export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const { snackbar, showSnackbar } = useSnackbar();
 
-  // Datos comunes
-  const [nombre, setNombre] = useState("");
+  // Solo email, contraseña y rol
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Datos para dueño de gimnasio
-  const [nombreGimnasio, setNombreGimnasio] = useState("");
-  const [razonSocialGimnasio, setRazonSocialGimnasio] = useState("");
-  const [cuitGimnasio, setCuitGimnasio] = useState("");
-  const [direccionGimnasio, setDireccionGimnasio] = useState("");
-  const [contactoGimnasio, setContactoGimnasio] = useState("");
-
-  // Datos para empleador
-  const [nombreEmpresa, setNombreEmpresa] = useState("");
-  const [razonSocial, setRazonSocial] = useState("");
-  const [cuitEmpleador, setCuitEmpleador] = useState("");
-  const [contactoEmpleador, setContactoEmpleador] = useState("");
-
-  function redirectByRole() {
-    if (role === "usuario") {
-      navigation.replace("Tabs");
-      return;
-    }
-    if (role === "gimnasio") {
-      navigation.replace("GymOwnerHome");
-      return;
-    }
-    if (role === "empleador") {
-      navigation.replace("EmployerHome");
-      return;
-    }
-    navigation.replace("Tabs");
-  }
-
-  function validateRoleFields() {
-    if (role === "gimnasio") {
-      if (
-        !nombreGimnasio.trim() ||
-        !razonSocialGimnasio.trim() ||
-        !cuitGimnasio.trim() ||
-        !direccionGimnasio.trim() ||
-        !contactoGimnasio.trim()
-      ) {
-        showSnackbar(
-          "Completá nombre del gimnasio, razón social, CUIT, dirección y contacto."
-        );
-        return false;
-      }
-    }
-
-    if (role === "empleador") {
-      if (
-        !nombreEmpresa.trim() ||
-        !razonSocial.trim() ||
-        !cuitEmpleador.trim() ||
-        !contactoEmpleador.trim()
-      ) {
-        showSnackbar(
-          "Completá nombre de la empresa, razón social, CUIT y contacto."
-        );
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   async function handleRegister() {
-    const cleanNombre = nombre.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!cleanNombre || !cleanEmail || !cleanPassword) {
-      showSnackbar("Completá nombre, email y contraseña.");
+    if (!cleanEmail || !cleanPassword) {
+      showSnackbar("Completá email y contraseña.");
       return;
     }
 
@@ -204,8 +140,6 @@ export default function RegisterScreen({ navigation }) {
       );
       return;
     }
-
-    if (!validateRoleFields()) return;
 
     setLoading(true);
     try {
@@ -228,45 +162,13 @@ export default function RegisterScreen({ navigation }) {
 
       await sendEmailVerification(user);
 
+      // Documento base en usuarios/{uid}
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
-        nombre: cleanNombre,
         email: cleanEmail,
         rol: role,
         creadoEn: serverTimestamp(),
-        actualizadoEn: serverTimestamp(),
       });
-
-      if (role === "gimnasio") {
-        await setDoc(doc(db, "gimnasios", user.uid), {
-          duenioId: user.uid,
-          nombreResponsable: cleanNombre,
-          email: cleanEmail,
-          nombreGimnasio: nombreGimnasio.trim(),
-          razonSocial: razonSocialGimnasio.trim(),
-          cuit: cuitGimnasio.trim(),
-          direccion: direccionGimnasio.trim(),
-          contacto: contactoGimnasio.trim(),
-          estado: "pendiente_validacion",
-          creadoEn: serverTimestamp(),
-          actualizadoEn: serverTimestamp(),
-        });
-      }
-
-      if (role === "empleador") {
-        await setDoc(doc(db, "empleadores", user.uid), {
-          empleadorId: user.uid,
-          nombreResponsable: cleanNombre,
-          email: cleanEmail,
-          nombreEmpresa: nombreEmpresa.trim(),
-          razonSocial: razonSocial.trim(),
-          cuit: cuitEmpleador.trim(),
-          contacto: contactoEmpleador.trim(),
-          estado: "pendiente_validacion",
-          creadoEn: serverTimestamp(),
-          actualizadoEn: serverTimestamp(),
-        });
-      }
 
       showSnackbar(
         `Cuenta creada como ${role}. Revisá tu casilla (o la carpeta de spam) para verificar tu email.`,
@@ -313,7 +215,7 @@ export default function RegisterScreen({ navigation }) {
 
         <Text style={styles.title}>Crear cuenta</Text>
         <Text style={styles.subtitle}>
-          Elegí el tipo de usuario y completá tus datos.
+          Elegí el tipo de cuenta e ingresá tu email y contraseña.
         </Text>
 
         <View style={styles.card}>
@@ -343,19 +245,6 @@ export default function RegisterScreen({ navigation }) {
 
           <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
 
-          <Text style={styles.label}>
-            {role === "usuario" ? "Nombre" : "Nombre del responsable"}
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder={
-              role === "usuario" ? "Tu nombre" : "Nombre del responsable"
-            }
-            placeholderTextColor={COLORS.textMuted}
-            value={nombre}
-            onChangeText={setNombre}
-          />
-
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
@@ -376,107 +265,6 @@ export default function RegisterScreen({ navigation }) {
             onChangeText={setPassword}
             secureTextEntry
           />
-
-          {role === "gimnasio" && (
-            <>
-              <Text style={styles.sectionTitle}>Datos del gimnasio</Text>
-
-              <Text style={styles.label}>Nombre del gimnasio</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej: SportClub Palermo"
-                placeholderTextColor={COLORS.textMuted}
-                value={nombreGimnasio}
-                onChangeText={setNombreGimnasio}
-              />
-
-              <Text style={styles.label}>Razón social</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Razón social del gimnasio"
-                placeholderTextColor={COLORS.textMuted}
-                value={razonSocialGimnasio}
-                onChangeText={setRazonSocialGimnasio}
-              />
-
-              <Text style={styles.label}>CUIT</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="CUIT del gimnasio"
-                placeholderTextColor={COLORS.textMuted}
-                value={cuitGimnasio}
-                onChangeText={setCuitGimnasio}
-                keyboardType="numeric"
-              />
-
-              <Text style={styles.label}>Dirección</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Dirección del gimnasio"
-                placeholderTextColor={COLORS.textMuted}
-                value={direccionGimnasio}
-                onChangeText={setDireccionGimnasio}
-              />
-
-              <Text style={styles.label}>Teléfono de contacto</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Teléfono de contacto"
-                placeholderTextColor={COLORS.textMuted}
-                value={contactoGimnasio}
-                onChangeText={(text) =>
-                  setContactoGimnasio(text.replace(/\D/g, ""))
-                }
-                keyboardType="numeric"
-              />
-            </>
-          )}
-
-          {role === "empleador" && (
-            <>
-              <Text style={styles.sectionTitle}>Datos de la empresa</Text>
-
-              <Text style={styles.label}>Nombre de la empresa</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nombre comercial de la empresa"
-                placeholderTextColor={COLORS.textMuted}
-                value={nombreEmpresa}
-                onChangeText={setNombreEmpresa}
-              />
-
-              <Text style={styles.label}>Razón social</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Razón social de la empresa"
-                placeholderTextColor={COLORS.textMuted}
-                value={razonSocial}
-                onChangeText={setRazonSocial}
-              />
-
-              <Text style={styles.label}>CUIT</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="CUIT de la empresa"
-                placeholderTextColor={COLORS.textMuted}
-                value={cuitEmpleador}
-                onChangeText={setCuitEmpleador}
-                keyboardType="numeric"
-              />
-
-              <Text style={styles.label}>Teléfono de contacto</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Teléfono de contacto"
-                placeholderTextColor={COLORS.textMuted}
-                value={contactoEmpleador}
-                onChangeText={(text) =>
-                  setContactoEmpleador(text.replace(/\D/g, ""))
-                }
-                keyboardType="numeric"
-              />
-            </>
-          )}
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}

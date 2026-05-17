@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
@@ -149,6 +150,18 @@ export default function ManageGymDetailsScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <ScrollView contentContainerStyle={styles.container}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color={COLORS.green}
+          />
+          <Text style={styles.back}>Volver</Text>
+        </TouchableOpacity>
+
         <Text style={styles.title}>Detalles del Gimnasio</Text>
         <Text style={styles.subtitle}>Agregá fotos y descripción a tu perfil público.</Text>
 
@@ -231,6 +244,17 @@ const styles = StyleSheet.create({
   container: {
     padding: 22,
     paddingBottom: 40,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 24,
+    alignSelf: "flex-start",
+  },
+  back: {
+    color: COLORS.green,
+    fontSize: 15,
   },
   title: {
     color: COLORS.text,
