@@ -27,6 +27,26 @@ const COLORS = {
   error: "#ef4444",
 };
 
+const getCoordinates = async (address) => {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`,
+    {
+      headers: {
+        "User-Agent": "Gympass/1.0"
+      }
+    }
+  );
+
+  const data = await res.json();
+
+  if (!data.length) throw new Error("No encontrado");
+
+  return {
+    latitude: parseFloat(data[0].lat),
+    longitude: parseFloat(data[0].lon),
+  };
+};
+
 // ─── Snackbar (mismo patrón que el resto de la app) ──────────────────────────
 function Snackbar({ message, type = "error", visible }) {
   const translateY = useRef(new Animated.Value(100)).current;
@@ -161,6 +181,19 @@ export default function EditGymInfoScreen({ navigation }) {
     try {
       const gymRef = doc(db, "gimnasios", user.uid);
 
+      let coords = null;
+
+      if (direccion.trim()) {
+        try {
+          coords = await getCoordinates(direccion);
+        } catch (e) {
+          console.log("Error geocoding:", e.message);
+        }
+      } else{
+        showSnackbar("La dirección es obligatoria para mostrar el gym en el mapa.");
+        return;
+      }
+
       await setDoc(
         gymRef,
         {
@@ -170,6 +203,10 @@ export default function EditGymInfoScreen({ navigation }) {
           razonSocial: razonSocial.trim(),
           cuit: cuit.trim(),
           direccion: direccion.trim(),
+          ...(coords && {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          }),
           contacto: contacto.trim(),
           actualizadoEn: serverTimestamp(),
         },

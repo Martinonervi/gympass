@@ -32,7 +32,8 @@
         {
           "locationWhenInUsePermission": "La app necesita acceder a tu ubicación para mostrar gimnasios cercanos."
         }
-      ]
+      ],
+      "expo-maps"
     ]
   }
 }
