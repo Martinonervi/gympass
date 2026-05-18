@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ExploreScreen from './ExploreScreen';
 import PassScreen from './PassScreen';       
 import ProfileScreen from './ProfileScreen'; 
+import MapScreen from "./MapScreen";
 
 
 const Tab = createBottomTabNavigator();
@@ -30,8 +31,16 @@ export default function BottomTabs({ theme, setIsSignedIn }) {
     >
       <Tab.Screen name="HomeTab" component={HomeScreen}
         options={{ tabBarLabel: 'Inicio', tabBarIcon: ({ color }) => <Ionicons name="home-outline" color={color} size={24} /> }} />
-      <Tab.Screen name="ExploreTab" component={ExploreScreen}
-        options={{ tabBarLabel: 'Explorar', tabBarIcon: ({ color }) => <Ionicons name="compass-outline" color={color} size={24} /> }} />
+            <Tab.Screen
+        name="MapTab"
+        component={MapScreen}
+        options={{
+          tabBarLabel: 'Explorar',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="map-outline" color={color} size={24} />
+          ),
+        }}
+      />
       <Tab.Screen name="PassTab" component={PassScreen}
         options={{ tabBarLabel: 'Mi Pase', tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode" color={color} size={24} /> }} />
       <Tab.Screen name="ProfileTab"
