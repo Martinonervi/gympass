@@ -36,13 +36,13 @@ const PLANES = [
     id: "classic",
     nombre: "Classic",
     descripcion: "Acceso a gimnasios básicos.",
-    accent: "#94a3b8",
+    accent: "#ffffff",
   },
   {
     id: "platinum",
     nombre: "Platinum",
     descripcion: "Acceso a gimnasios premium y clases grupales.",
-    accent: "#22c55e",
+    accent: "#ffffff",
   },
   {
     id: "black",
@@ -167,6 +167,7 @@ export default function PassScreen() {
   }
 
   async function selectPlan(planId) {
+    if (planId === planActivo) return; 
     const user = auth.currentUser;
     if (!user) return;
     if (saving) return;
@@ -243,7 +244,7 @@ export default function PassScreen() {
               key={plan.id}
               style={[
                 styles.planCard,
-                isActive && { borderColor: plan.accent, borderWidth: 2 },
+                isActive && { borderColor: plan.accent, borderWidth: 2, backgroundColor: COLORS.greenDark},
               ]}
               onPress={() => selectPlan(plan.id)}
               disabled={saving}
@@ -261,7 +262,9 @@ export default function PassScreen() {
                   />
                 )}
               </View>
-              <Text style={styles.planDesc}>{plan.descripcion}</Text>
+              <Text style={[styles.planDesc, isActive && { color: '#ffffff' }]}>
+                {plan.descripcion}
+              </Text>
               <View
                 style={[
                   styles.planAction,

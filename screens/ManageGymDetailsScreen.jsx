@@ -10,9 +10,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Switch,
+  Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
@@ -29,33 +33,75 @@ const COLORS = {
   red: "#ef4444",
 };
 
+const DIAS = [
+  { key: "lunes",     label: "Lunes" },
+  { key: "martes",    label: "Martes" },
+  { key: "miercoles", label: "Miércoles" },
+  { key: "jueves",    label: "Jueves" },
+  { key: "viernes",   label: "Viernes" },
+  { key: "sabado",    label: "Sábado" },
+  { key: "domingo",   label: "Domingo" },
+];
+
+const HORARIOS_DEFAULT = {
+  lunes:     { abre: "08:00", cierra: "22:00", abierto: true },
+  martes:    { abre: "08:00", cierra: "22:00", abierto: true },
+  miercoles: { abre: "08:00", cierra: "22:00", abierto: true },
+  jueves:    { abre: "08:00", cierra: "22:00", abierto: true },
+  viernes:   { abre: "08:00", cierra: "22:00", abierto: true },
+  sabado:    { abre: "09:00", cierra: "14:00", abierto: true },
+  domingo:   { abre: "00:00", cierra: "00:00", abierto: false },
+};
+
+// Convierte "08:30" a un objeto Date (solo importa la hora)
+function horaStringADate(horaStr) {
+  const [h, m] = horaStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+// Convierte un Date a "08:30"
+function dateAHoraString(date) {
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 export default function ManageGymDetailsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [descripcion, setDescripcion] = useState("");
-  const [horarios, setHorarios] = useState("");
+  const [horarios, setHorarios] = useState(HORARIOS_DEFAULT);
   const [comodidades, setComodidades] = useState("");
   const [fotos, setFotos] = useState([]);
+
+  // Control del picker de hora
+  const [picker, setPicker] = useState({
+    visible: false,
+    dia: null,
+    campo: null,
+  });
+  const [tempHora, setTempHora] = useState(new Date());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const user = auth.currentUser;
-        if (!user) {
-          setLoading(false);
-          return;
-        }
+        if (!user) { setLoading(false); return; }
 
-        const gymDocRef = doc(db, "gimnasios", user.uid);
-        const gymDocSnap = await getDoc(gymDocRef);
+        const snap = await getDoc(doc(db, "gimnasios", user.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          setDescripcion(data.descripcion || "");
+          setComodidades(data.comodidades || "");
+          setFotos(data.fotos || []);
 
-        if (gymDocSnap.exists()) {
-          const gymData = gymDocSnap.data();
-          setDescripcion(gymData.descripcion || "");
-          setHorarios(gymData.horarios || "");
-          setComodidades(gymData.comodidades || "");
-          setFotos(gymData.fotos || []);
+          // Si ya tenía horarios como objeto los usamos, sino los defaults
+          if (data.horarios && typeof data.horarios === "object" && Object.keys(data.horarios).length > 0) {
+            setHorarios({ ...HORARIOS_DEFAULT, ...data.horarios });
+          }
         }
       } catch (error) {
         Alert.alert("Error", "Hubo un problema al cargar los datos.");
@@ -64,67 +110,89 @@ export default function ManageGymDetailsScreen({ navigation }) {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  const handlePickImage = async () => {
-    // Pedir permisos primero
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  function abrirPicker(dia, campo) {
+    const horaActual = horarios[dia]?.[campo] || "08:00";
+    setTempHora(horaStringADate(horaActual));
+    setPicker({ visible: true, dia, campo });
+  }
 
-    if (permissionResult.granted === false) {
+  function onPickerChange(event, selectedDate) {
+    if (!selectedDate) return;
+    if (Platform.OS === "android") {
+      // En Android confirmamos directo
+      setPicker((p) => ({ ...p, visible: false }));
+      if (event.type === "dismissed") return;
+      const horaStr = dateAHoraString(selectedDate);
+      setHorarios((prev) => ({
+        ...prev,
+        [picker.dia]: { ...prev[picker.dia], [picker.campo]: horaStr },
+      }));
+    } else {
+      // En iOS solo actualizamos el valor temporal mientras scrollea
+      setTempHora(selectedDate);
+    }
+  }
+
+  function confirmarHoraIOS() {
+    const horaStr = dateAHoraString(tempHora);
+    setHorarios((prev) => ({
+      ...prev,
+      [picker.dia]: { ...prev[picker.dia], [picker.campo]: horaStr },
+    }));
+    setPicker((p) => ({ ...p, visible: false }));
+  }
+
+  function cancelarPickerIOS() {
+    setPicker((p) => ({ ...p, visible: false }));
+  }
+
+  function toggleDia(dia) {
+    setHorarios((prev) => ({
+      ...prev,
+      [dia]: { ...prev[dia], abierto: !prev[dia].abierto },
+    }));
+  }
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
       Alert.alert("Permiso denegado", "Se requiere permiso para acceder a la galería.");
       return;
     }
-
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.7,
     });
-
     if (!result.canceled) {
-      // Mock de subida: simplemente agregamos la URI local al array de fotos
-      setFotos((prevFotos) => [...prevFotos, result.assets[0].uri]);
+      setFotos((prev) => [...prev, result.assets[0].uri]);
     }
   };
 
   const handleRemovePhoto = (index) => {
-    setFotos((prevFotos) => prevFotos.filter((_, i) => i !== index));
+    setFotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
-    // 1. Validaciones de campos obligatorios (Criterio de Aceptación de la US 25 y 26)
-    // Asumimos que nombre, direccion y contacto ya los validaron en ProfileScreen o RegisterScreen.
-    // Acá validamos los que pide esta pantalla: horarios.
-    if (!horarios.trim()) {
-      Alert.alert("Campos incompletos", "Los horarios de atención son obligatorios.");
-      return;
-    }
-
     try {
       setSaving(true);
       const user = auth.currentUser;
-
       if (!user) throw new Error("No hay usuario autenticado.");
 
-      const gymDocRef = doc(db, "gimnasios", user.uid);
-
-      // TODO: Implementar subida real a Firebase Storage de cada URI local en el array 'fotos'.
-      await updateDoc(gymDocRef, {
-        descripcion: descripcion.trim(), // Es opcional según la US
-        horarios: horarios.trim(),       // Obligatorio
-        comodidades: comodidades.trim(), // Es opcional según la US
-        fotos: fotos,
+      await updateDoc(doc(db, "gimnasios", user.uid), {
+        descripcion: descripcion.trim(),
+        horarios,
+        comodidades: comodidades.trim(),
+        fotos,
       });
 
-      // Mensaje de confirmación (Criterio de Aceptación de la US 26)
       Alert.alert(
         "Éxito",
         "Los detalles del gimnasio se actualizaron correctamente.",
-        [
-          { text: "OK", onPress: () => navigation.goBack() }
-        ]
+        [{ text: "OK", onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       Alert.alert("Error", "No se pudieron guardar los detalles.");
@@ -150,15 +218,8 @@ export default function ManageGymDetailsScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={22}
-            color={COLORS.green}
-          />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
           <Text style={styles.back}>Volver</Text>
         </TouchableOpacity>
 
@@ -166,6 +227,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
         <Text style={styles.subtitle}>Agregá fotos y descripción a tu perfil público.</Text>
 
         <View style={styles.card}>
+          {/* Descripción */}
           <Text style={styles.label}>Descripción del gimnasio</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
@@ -178,16 +240,48 @@ export default function ManageGymDetailsScreen({ navigation }) {
             textAlignVertical="top"
           />
 
-          <Text style={styles.label}>Horarios de atención</Text>
-          <TextInput
-            style={styles.input}
-            value={horarios}
-            onChangeText={setHorarios}
-            placeholder="Ej: Lunes a Viernes 8:00 a 22:00 hs"
-            placeholderTextColor={COLORS.textMuted}
-          />
+          {/* Horarios */}
+          <Text style={styles.sectionTitle}>Horarios de atención</Text>
+          {DIAS.map(({ key, label }) => {
+            const dia = horarios[key];
+            return (
+              <View key={key} style={styles.diaRow}>
+                <View style={styles.diaLeft}>
+                  <Switch
+                    value={dia.abierto}
+                    onValueChange={() => toggleDia(key)}
+                    trackColor={{ false: COLORS.border, true: COLORS.greenDark }}
+                  />
+                  <Text style={[styles.diaLabel, !dia.abierto && styles.diaCerrado]}>
+                    {label}
+                  </Text>
+                </View>
 
-          <Text style={styles.label}>Comodidades</Text>
+                {dia.abierto ? (
+                  <View style={styles.diaHoras}>
+                    <TouchableOpacity
+                      style={styles.horaPicker}
+                      onPress={() => abrirPicker(key, "abre")}
+                    >
+                      <Text style={styles.horaText}>{dia.abre}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.horaSep}>—</Text>
+                    <TouchableOpacity
+                      style={styles.horaPicker}
+                      onPress={() => abrirPicker(key, "cierra")}
+                    >
+                      <Text style={styles.horaText}>{dia.cierra}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={styles.cerradoText}>Cerrado</Text>
+                )}
+              </View>
+            );
+          })}
+
+          {/* Comodidades */}
+          <Text style={styles.sectionTitle}>Comodidades</Text>
           <TextInput
             style={styles.input}
             value={comodidades}
@@ -196,6 +290,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
             placeholderTextColor={COLORS.textMuted}
           />
 
+          {/* Fotos */}
           <Text style={styles.sectionTitle}>Fotos del gimnasio</Text>
           <TouchableOpacity style={styles.secondaryButton} onPress={handlePickImage}>
             <Text style={styles.secondaryButtonText}>Seleccionar fotos de la galería</Text>
@@ -219,53 +314,64 @@ export default function ManageGymDetailsScreen({ navigation }) {
             onPress={handleSave}
             disabled={saving}
           >
-            {saving ? (
-              <ActivityIndicator color={COLORS.text} />
-            ) : (
-              <Text style={styles.buttonText}>Guardar detalles</Text>
-            )}
+            {saving
+              ? <ActivityIndicator color={COLORS.text} />
+              : <Text style={styles.buttonText}>Guardar detalles</Text>
+            }
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Picker de hora — Modal en iOS, inline en Android */}
+      {Platform.OS === "ios" ? (
+        <Modal visible={picker.visible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={cancelarPickerIOS}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={confirmarHoraIOS}>
+                  <Text style={styles.modalConfirm}>Aceptar</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                mode="time"
+                display="spinner"
+                value={tempHora}
+                onChange={onPickerChange}
+                is24Hour={true}
+                style={styles.iosPicker}
+                textColor={COLORS.text}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        picker.visible && (
+          <DateTimePicker
+            mode="time"
+            display="default"
+            value={tempHora}
+            onChange={onPickerChange}
+            is24Hour={true}
+          />
+        )
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  container: {
-    padding: 22,
-    paddingBottom: 40,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 24,
-    alignSelf: "flex-start",
-  },
-  back: {
-    color: COLORS.green,
-    fontSize: 15,
-  },
-  title: {
-    color: COLORS.text,
-    fontSize: 28,
-    fontWeight: "800",
-  },
-  subtitle: {
-    color: COLORS.textMuted,
-    marginTop: 6,
-    marginBottom: 22,
-  },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { padding: 22, paddingBottom: 40 },
+
+  backButton: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 24, alignSelf: "flex-start" },
+  back: { color: COLORS.green, fontSize: 15 },
+  title: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
+  subtitle: { color: COLORS.textMuted, marginTop: 6, marginBottom: 22 },
+
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 22,
@@ -273,6 +379,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+
   sectionTitle: {
     color: COLORS.green,
     fontSize: 16,
@@ -280,12 +387,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
-  label: {
-    color: COLORS.text,
-    fontSize: 14,
-    marginBottom: 8,
-    marginTop: 12,
-  },
+  label: { color: COLORS.text, fontSize: 14, marginBottom: 8, marginTop: 12 },
   input: {
     backgroundColor: COLORS.input,
     color: COLORS.text,
@@ -295,9 +397,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  textArea: {
-    minHeight: 100,
+  textArea: { minHeight: 100 },
+
+  // Fila de cada día
+  diaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
+  diaLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  diaLabel: { color: COLORS.text, fontSize: 14, fontWeight: "500", width: 80 },
+  diaCerrado: { color: COLORS.textMuted },
+  diaHoras: { flexDirection: "row", alignItems: "center", gap: 8 },
+  horaPicker: {
+    backgroundColor: COLORS.input,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  horaText: { color: COLORS.green, fontSize: 14, fontWeight: "700" },
+  horaSep: { color: COLORS.textMuted, fontSize: 14 },
+  cerradoText: { color: COLORS.textMuted, fontSize: 13 },
+
   button: {
     backgroundColor: COLORS.greenDark,
     borderRadius: 14,
@@ -305,14 +431,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
+
   secondaryButton: {
     borderWidth: 1,
     borderColor: COLORS.green,
@@ -321,38 +442,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  secondaryButtonText: {
-    color: COLORS.green,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  photosScroll: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  photoContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  photo: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
-  },
+  secondaryButtonText: { color: COLORS.green, fontSize: 14, fontWeight: "700" },
+
+  photosScroll: { marginTop: 8, marginBottom: 8 },
+  photoContainer: { position: "relative", marginRight: 12 },
+  photo: { width: 100, height: 100, borderRadius: 12 },
   removeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -6,
     right: -6,
     backgroundColor: COLORS.red,
     width: 24,
     height: 24,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
-  removeButtonText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: 'bold',
+  removeButtonText: { color: COLORS.text, fontSize: 12, fontWeight: "bold" },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
+  modalCard: {
+    backgroundColor: "#1a2535",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalCancel: { color: COLORS.textMuted, fontSize: 16 },
+  modalConfirm: { color: COLORS.green, fontSize: 16, fontWeight: "700" },
+  iosPicker: { backgroundColor: "#1a2535" },
 });

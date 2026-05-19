@@ -33,7 +33,8 @@
           "locationWhenInUsePermission": "La app necesita acceder a tu ubicación para mostrar gimnasios cercanos."
         }
       ],
-      "expo-maps"
+      "expo-maps",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

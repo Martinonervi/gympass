@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, SafeAreaView,
+  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator,
 } from 'react-native';
-import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 const COLORS = {
   bg: '#0f1520',
@@ -17,13 +20,13 @@ const COLORS = {
   textSecondary: '#94a3b8',
 };
 
+const PLANES = {
+  classic:  { nombre: 'Classic',  descripcion: 'Acceso a gimnasios básicos.' },
+  platinum: { nombre: 'Platinum', descripcion: 'Acceso a gimnasios premium y clases grupales.' },
+  black:    { nombre: 'Black',    descripcion: 'Acceso ilimitado a toda la red, incluyendo spa y nutrición.' },
+};
+
 const mockData = {
-  user: { name: 'G9', notifications: 2 },
-  plan: {
-    name: 'Plan Silver',
-    status: 'Activo',
-    benefit: 'Beneficio corporativo activo',
-  },
   reservations: [
     {
       id: '1',
@@ -41,15 +44,55 @@ const mockData = {
 };
 
 const OCCUPANCY = [
-  { label: 'Vacío',    emoji: '😄', color: '#14532d' },
+  { label: 'Vacío',     emoji: '😄', color: '#14532d' },
   { label: 'Tranquilo', emoji: '🙂', color: '#14532d' },
-  { label: 'Moderado', emoji: '😐', color: '#1e3a1a' },
-  { label: 'Lleno',    emoji: '😟', color: '#3a2a10' },
+  { label: 'Moderado',  emoji: '😐', color: '#1e3a1a' },
+  { label: 'Lleno',     emoji: '😟', color: '#3a2a10' },
   { label: 'Muy lleno', emoji: '😰', color: '#3a1010' },
 ];
 
 export default function HomeScreen() {
+  const navigation = useNavigation();
   const [selectedOccupancy, setSelectedOccupancy] = useState(null);
+  const [planId, setPlanId] = useState(null);
+  const [nombreUsuario, setNombreUsuario] = useState('');
+  const [loadingPlan, setLoadingPlan] = useState(true);
+
+  // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
+  // así el plan aparece actualizado después de comprarlo en PassScreen.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoadingPlan(true);
+
+      const fetchUserData = async () => {
+        try {
+          const user = auth.currentUser;
+          if (!user) return;
+          const snap = await getDoc(doc(db, 'usuarios', user.uid));
+          if (snap.exists() && active) {
+            const data = snap.data();
+            setPlanId(data.plan || null);
+
+            // Nombre: usa nombre+apellido si existen, sino la parte del email antes del @
+            const nombre = (data.nombre || data.apellido)
+              ? `${data.nombre || ''} ${data.apellido || ''}`.trim()
+              : (user.email || '').split('@')[0];
+            setNombreUsuario(nombre);
+          }
+        } catch (e) {
+          console.log('HomeScreen: no se pudo leer usuario', e?.code || e?.message);
+        } finally {
+          if (active) setLoadingPlan(false);
+        }
+      };
+
+      fetchUserData();
+      return () => { active = false; };
+    }, [])
+  );
+
+  const planData = planId ? PLANES[planId] : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -59,36 +102,63 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greetingSub}>Buenos días</Text>
-            <Text style={styles.greetingName}>Hola, {mockData.user.name}!</Text>
+            <Text style={styles.greetingName}>
+              Hola{nombreUsuario ? `, ${nombreUsuario}` : ''}!
+            </Text>
           </View>
           <TouchableOpacity style={styles.notifBtn}>
             <Ionicons name="notifications-outline" size={18} color={COLORS.textSecondary} />
-            {mockData.user.notifications > 0 && <View style={styles.notifDot} />}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.planCard}>
-          <View style={styles.planBadge}>
-            <MaterialCommunityIcons name="star-four-points" size={10} color="#d1fae5" />
-            <Text style={styles.planBadgeText}>Plan Activo</Text>
+        {/* Tarjeta de plan */}
+        {loadingPlan ? (
+          <View style={[styles.planCard, styles.planCardLoading]}>
+            <ActivityIndicator color="#fff" />
           </View>
-          <View style={styles.planIconTop}>
-            <MaterialCommunityIcons name="dumbbell" size={20} color="rgba(255,255,255,0.7)" />
+        ) : planData ? (
+          <View style={styles.planCard}>
+            <View style={styles.planBadge}>
+              <MaterialCommunityIcons name="star-four-points" size={10} color="#d1fae5" />
+              <Text style={styles.planBadgeText}>Plan Activo</Text>
+            </View>
+            <View style={styles.planIconTop}>
+              <MaterialCommunityIcons name="dumbbell" size={20} color="rgba(255,255,255,0.7)" />
+            </View>
+            <Text style={styles.planName}>{planData.nombre}</Text>
+            <Text style={styles.planDesc}>{planData.descripcion}</Text>
+            <TouchableOpacity
+              style={styles.planBtn}
+              onPress={() => navigation.navigate('PassTab')}
+            >
+              <Text style={styles.planBtnText}>Ver detalles del plan</Text>
+              <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.planName}>{mockData.plan.name}</Text>
-          <View style={styles.planBenefit}>
-            <MaterialCommunityIcons name="office-building" size={12} color="#86efac" />
-            <Text style={styles.planBenefitText}>{mockData.plan.benefit}</Text>
+        ) : (
+          <View style={[styles.planCard, styles.planCardEmpty]}>
+            <View style={styles.planIconTop}>
+              <MaterialCommunityIcons name="dumbbell" size={20} color="rgba(255,255,255,0.4)" />
+            </View>
+            <Text style={styles.planEmptyTitle}>Sin plan activo</Text>
+            <Text style={styles.planEmptyDesc}>
+              Elegí un plan para comenzar a usar GymPass.
+            </Text>
+            <TouchableOpacity
+              style={styles.planBtn}
+              onPress={() => navigation.navigate('PassTab')}
+            >
+              <Text style={styles.planBtnText}>Elegir plan</Text>
+              <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.planBtn}>
-            <Text style={styles.planBtnText}>Ver detalles del plan</Text>
-            <Ionicons name="chevron-forward" size={14} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        )}
 
+        {/* Próximas reservas */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Próximas Reservas</Text>
           <TouchableOpacity>
@@ -119,6 +189,7 @@ export default function HomeScreen() {
           </View>
         ))}
 
+        {/* Feedback ocupación */}
         <View style={styles.feedbackCard}>
           <View style={styles.fbHeader}>
             <View style={styles.fbIconWrap}>
@@ -155,9 +226,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Atajos */}
         <Text style={styles.atajoTitle}>Atajos de Exploración</Text>
         <View style={styles.atajoGrid}>
-          <TouchableOpacity style={styles.atajoCard}>
+          <TouchableOpacity
+            style={styles.atajoCard}
+            onPress={() => navigation.navigate('MapTab')}
+          >
             <View style={[styles.atajoIcon, { backgroundColor: '#1a2a3a' }]}>
               <Ionicons name="location-outline" size={18} color={COLORS.green} />
             </View>
@@ -176,57 +251,309 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
-  scroll: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
+  safe: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg 
+  },
+  scroll: { 
+    flex: 1 
+  },
+  content: { 
+    padding: 20, 
+    paddingBottom: 32 
+  },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, marginTop: 20 },
-  greetingSub: { fontSize: 12, color: COLORS.textMuted, marginBottom: 2 },
-  greetingName: { fontSize: 26, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
-  notifBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1a2535', borderWidth: 1, borderColor: '#2a3a4e', alignItems: 'center', justifyContent: 'center' },
-  notifDot: { width: 7, height: 7, backgroundColor: COLORS.green, borderRadius: 4, position: 'absolute', top: 6, right: 7, borderWidth: 1.5, borderColor: COLORS.bg },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'flex-start', 
+    marginBottom: 20, 
+    marginTop: 20 
+  },
+  greetingSub: { 
+    fontSize: 12, 
+    color: COLORS.textMuted, 
+    marginBottom: 2 
+  },
+  greetingName: { 
+    fontSize: 26, 
+    fontWeight: '700', 
+    color: COLORS.text, 
+    letterSpacing: -0.5 
+  },
+  notifBtn: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 18,
+    backgroundColor: '#1a2535',
+    borderWidth: 1, 
+    borderColor: '#2a3a4e', 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
 
-  planCard: { backgroundColor: COLORS.greenDark, borderRadius: 18, padding: 18, marginBottom: 24 },
-  planBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10, alignSelf: 'flex-start', marginBottom: 6 },
-  planBadgeText: { fontSize: 11, color: '#d1fae5' },
-  planIconTop: { position: 'absolute', top: 14, right: 16, width: 38, height: 38, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  planName: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 8 },
-  planBenefit: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
-  planBenefitText: { fontSize: 12, color: '#bbf7d0' },
-  planBtn: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  planBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  planCard: { 
+    backgroundColor: COLORS.greenDark, 
+    borderRadius: 18, 
+    padding: 18, 
+    marginBottom: 24 
+  },
+  planCardLoading: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    minHeight: 120 
+  },
+  planCardEmpty: { 
+    backgroundColor: '#1a2535', 
+    borderWidth: 1, 
+    borderColor: '#2a3a4e' 
+  },
+  planBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5, 
+    backgroundColor: 'rgba(255,255,255,0.15)', 
+    borderRadius: 20, 
+    paddingVertical: 3, 
+    paddingHorizontal: 10, 
+    alignSelf: 'flex-start', 
+    marginBottom: 6 
+  },
+  planBadgeText: { 
+    fontSize: 11, 
+    color: '#d1fae5' 
+  },
+  planIconTop: { 
+    position: 'absolute', 
+    top: 14, 
+    right: 16, 
+    width: 38, 
+    height: 38, 
+    backgroundColor: 'rgba(255,255,255,0.12)', 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  planName: { 
+    fontSize: 22, 
+    fontWeight: '700', 
+    color: '#fff', 
+    marginBottom: 6 
+  },
+  planDesc: { 
+    fontSize: 12, 
+    color: '#bbf7d0', 
+    marginBottom: 14 
+  },
+  planEmptyTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: COLORS.textSecondary, 
+    marginBottom: 6, 
+    marginTop: 4 
+  },
+  planEmptyDesc: {
+  fontSize: 13,
+  color: COLORS.textMuted,
+  marginBottom: 14,
+},
+planBtn: {
+  backgroundColor: 'rgba(255,255,255,0.18)',
+  borderRadius: 10,
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+},
+planBtnText: {
+  color: '#fff',
+  fontSize: 13,
+  fontWeight: '500',
+},
 
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  seeAll: { fontSize: 12, color: COLORS.green, fontWeight: '500' },
+sectionHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 12,
+},
+sectionTitle: {
+  fontSize: 16,
+  fontWeight: '700',
+  color: COLORS.text,
+},
+seeAll: {
+  fontSize: 12,
+  color: COLORS.green,
+  fontWeight: '500',
+},
 
-  reservationCard: { backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.border },
-  resIcon: { width: 44, height: 44, backgroundColor: '#1e3a28', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  resBody: { flex: 1 },
-  resTagWrapper: { marginBottom: 3 },
-  resTag: { backgroundColor: COLORS.greenDark, color: '#fff', fontSize: 10, fontWeight: '600', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 7, alignSelf: 'flex-start' },
-  resName: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 1 },
-  resDetail: { fontSize: 11, color: COLORS.textMuted },
-  resLoc: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  resLocText: { fontSize: 11, color: COLORS.textMuted },
-  verBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#1e2e40', borderWidth: 1, borderColor: '#2a3d52', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12 },
-  verBtnText: { fontSize: 12, color: COLORS.textSecondary },
+reservationCard: {
+  backgroundColor: COLORS.card,
+  borderRadius: 14,
+  padding: 14,
+  marginBottom: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+resIcon: {
+  width: 44,
+  height: 44,
+  backgroundColor: '#1e3a28',
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+resBody: {
+  flex: 1,
+},
+resTagWrapper: {
+  marginBottom: 3,
+},
+resTag: {
+  backgroundColor: COLORS.greenDark,
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: '600',
+  borderRadius: 6,
+  paddingVertical: 2,
+  paddingHorizontal: 7,
+  alignSelf: 'flex-start',
+},
+resName: {
+  fontSize: 15,
+  fontWeight: '700',
+  color: COLORS.text,
+  marginBottom: 1,
+},
+resDetail: {
+  fontSize: 11,
+  color: COLORS.textMuted,
+},
+resLoc: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 2,
+},
+resLocText: {
+  fontSize: 11,
+  color: COLORS.textMuted,
+},
+verBtn: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 5,
+  backgroundColor: '#1e2e40',
+  borderWidth: 1,
+  borderColor: '#2a3d52',
+  borderRadius: 10,
+  paddingVertical: 7,
+  paddingHorizontal: 12,
+},
+verBtnText: {
+  fontSize: 12,
+  color: COLORS.textSecondary,
+},
 
-  feedbackCard: { backgroundColor: COLORS.cardDark, borderRadius: 14, padding: 14, marginBottom: 24, borderWidth: 1, borderColor: COLORS.border },
-  fbHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
-  fbIconWrap: { width: 34, height: 34, backgroundColor: 'rgba(194,120,0,0.12)', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  fbTitle: { fontSize: 13, fontWeight: '600', color: '#e2e8f0' },
-  fbTime: { fontSize: 11, color: '#4a6070' },
-  fbQuestion: { fontSize: 13, color: '#8fa3b0', marginVertical: 10 },
-  fbOptions: { flexDirection: 'row', justifyContent: 'space-between' },
-  fbOption: { alignItems: 'center', gap: 4, flex: 1 },
-  fbEmoji: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  fbEmojiSelected: { borderWidth: 2, borderColor: COLORS.green },
-  fbLabel: { fontSize: 10, color: '#5d7a8a', textAlign: 'center' },
+feedbackCard: {
+  backgroundColor: COLORS.cardDark,
+  borderRadius: 14,
+  padding: 14,
+  marginBottom: 24,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+fbHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 2,
+},
+fbIconWrap: {
+  width: 34,
+  height: 34,
+  backgroundColor: 'rgba(194,120,0,0.12)',
+  borderRadius: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+fbTitle: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#e2e8f0',
+},
+fbTime: {
+  fontSize: 11,
+  color: '#4a6070',
+},
+fbQuestion: {
+  fontSize: 13,
+  color: '#8fa3b0',
+  marginVertical: 10,
+},
+fbOptions: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+},
+fbOption: {
+  alignItems: 'center',
+  gap: 4,
+  flex: 1,
+},
+fbEmoji: {
+  width: 38,
+  height: 38,
+  borderRadius: 19,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+fbEmojiSelected: {
+  borderWidth: 2,
+  borderColor: COLORS.green,
+},
+fbLabel: {
+  fontSize: 10,
+  color: '#5d7a8a',
+  textAlign: 'center',
+},
 
-  atajoTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
-  atajoGrid: { flexDirection: 'row', gap: 10 },
-  atajoCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 14, padding: 16, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.border },
-  atajoIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  atajoLabel: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', fontWeight: '500' },
+atajoTitle: {
+  fontSize: 16,
+  fontWeight: '700',
+  color: COLORS.text,
+  marginBottom: 12,
+},
+atajoGrid: {
+  flexDirection: 'row',
+  gap: 10,
+},
+atajoCard: {
+  flex: 1,
+  backgroundColor: COLORS.card,
+  borderRadius: 14,
+  padding: 16,
+  alignItems: 'center',
+  gap: 8,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+atajoIcon: {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+atajoLabel: {
+  fontSize: 12,
+  color: COLORS.textSecondary,
+  textAlign: 'center',
+  fontWeight: '500',
+},
 });
