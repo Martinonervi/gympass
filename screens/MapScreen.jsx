@@ -4,7 +4,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
-export default function MapScreen() {
+export default function MapScreen({ navigation }) {
   const [gyms, setGyms] = useState([]);
 
   useEffect(() => {
@@ -51,6 +51,7 @@ export default function MapScreen() {
               }}
               title={gym.nombreGimnasio}
               description={gym.direccion}
+              onCalloutPress={() => navigation.navigate("GymDetail", { gymId: gym.id })}
             />
           );
         })}

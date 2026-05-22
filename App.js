@@ -19,7 +19,7 @@ import EditEmployerInfoScreen from "./screens/EditEmployerInfoScreen";
 import EditUserInfoScreen from "./screens/EditUserInfoScreen";
 import ManageClassesScreen from "./screens/ManageClassesScreen";
 import AddClassScreen from "./screens/AddClassScreen";
-
+import GymDetailScreen from "./screens/GymDetailScreen";
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -98,6 +98,7 @@ function App() {
             <Stack.Screen name="ManageGymDetails" component={ManageGymDetailsScreen} />
             <Stack.Screen name="ManageClasses" component={ManageClassesScreen} />
             <Stack.Screen name="AddClass" component={AddClassScreen} />
+            <Stack.Screen name="GymDetail" component={GymDetailScreen} />
             <Stack.Screen name="EditGymInfo" component={EditGymInfoScreen} />
             <Stack.Screen name="EditEmployerInfo" component={EditEmployerInfoScreen} />
             <Stack.Screen name="EditUserInfo" component={EditUserInfoScreen} />
