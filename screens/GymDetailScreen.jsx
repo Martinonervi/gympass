@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, doc, getDoc, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, addDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -68,11 +68,28 @@ export default function GymDetailScreen({ route, navigation }) {
     if (gymId) fetchData();
   }, [gymId]);
 
+  const yaReservo = async (tipo, claseId = null) => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const conditions = [
+      where("userId", "==", user.uid),
+      where("gymId", "==", gymId),
+      where("tipo", "==", tipo),
+    ];
+    if (claseId) conditions.push(where("claseId", "==", claseId));
+    const snap = await getDocs(query(collection(db, "reservas"), ...conditions, limit(1)));
+    return !snap.empty;
+  };
+
   const reservarPase = async () => {
     const user = auth.currentUser;
     if (!user) return;
     setReservando(true);
     try {
+      if (await yaReservo("pase")) {
+        Alert.alert("Ya reservaste", `Ya tenés un pase reservado para ${gymData?.nombreGimnasio || "este gimnasio"}.`);
+        return;
+      }
       await addDoc(collection(db, "reservas"), {
         userId: user.uid,
         tipo: "pase",
@@ -95,6 +112,10 @@ export default function GymDetailScreen({ route, navigation }) {
     if (!user) return;
     setReservando(true);
     try {
+      if (await yaReservo("clase", cls.id)) {
+        Alert.alert("Ya reservaste", `Ya tenés un lugar reservado en ${cls.nombre}.`);
+        return;
+      }
       await addDoc(collection(db, "reservas"), {
         userId: user.uid,
         tipo: "clase",

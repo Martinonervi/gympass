@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator,
+  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -18,6 +18,7 @@ const COLORS = {
   text: '#ffffff',
   textMuted: '#6b7f95',
   textSecondary: '#94a3b8',
+  error: '#ef4444',
 };
 
 const PLANES = {
@@ -115,6 +116,29 @@ export default function HomeScreen() {
   );
 
   const planData = planId ? PLANES[planId] : null;
+
+  const eliminarReserva = (reservaId, nombre) => {
+    Alert.alert(
+      "Cancelar reserva",
+      `¿Seguro que querés cancelar la reserva de ${nombre}?`,
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "reservas", reservaId));
+              setReservas((prev) => prev.filter((r) => r.id !== reservaId));
+            } catch (e) {
+              console.error("Error eliminando reserva:", e);
+              Alert.alert("Error", e.message || "No se pudo cancelar la reserva.");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -232,6 +256,12 @@ export default function HomeScreen() {
                     </View>
                   ) : null}
                 </View>
+                <TouchableOpacity
+                  onPress={() => eliminarReserva(res.id, esClase ? res.nombreClase : res.nombreGimnasio)}
+                  style={styles.deleteBtn}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
+                </TouchableOpacity>
               </View>
             );
           })
@@ -492,6 +522,9 @@ resLoc: {
 resLocText: {
   fontSize: 11,
   color: COLORS.textMuted,
+},
+deleteBtn: {
+  padding: 6,
 },
 verBtn: {
   flexDirection: 'row',
