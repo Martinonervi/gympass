@@ -17,9 +17,30 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
+import { CLOUDINARY } from "../cloudinaryConfig";
+
+const uploadToCloudinary = async (uri, userId, index) => {
+  const formData = new FormData();
+  formData.append("file", {
+    uri,
+    type: "image/jpeg",
+    name: `gym_${userId}_${index}_${Date.now()}.jpg`,
+  });
+  formData.append("upload_preset", CLOUDINARY.uploadPreset);
+  formData.append("folder", `gimnasios/${userId}`);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!res.ok) throw new Error("Error al subir imagen a Cloudinary");
+  const data = await res.json();
+  return data.secure_url;
+};
 
 const COLORS = {
   bg: "#0f1520",
@@ -182,12 +203,19 @@ export default function ManageGymDetailsScreen({ navigation }) {
       const user = auth.currentUser;
       if (!user) throw new Error("No hay usuario autenticado.");
 
-      await updateDoc(doc(db, "gimnasios", user.uid), {
+      const fotosSubidas = await Promise.all(
+        fotos.map((uri, index) => {
+          if (uri.startsWith("https://res.cloudinary.com")) return uri;
+          return uploadToCloudinary(uri, user.uid, index);
+        })
+      );
+
+      await setDoc(doc(db, "gimnasios", user.uid), {
         descripcion: descripcion.trim(),
         horarios,
         comodidades: comodidades.trim(),
-        fotos,
-      });
+        fotos: fotosSubidas,
+      }, { merge: true });
 
       Alert.alert(
         "Éxito",

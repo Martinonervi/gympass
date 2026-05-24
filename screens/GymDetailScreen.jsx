@@ -123,7 +123,26 @@ export default function GymDetailScreen({ route, navigation }) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Horarios</Text>
-          <Text style={styles.sectionContent}>{horarios || "No especificado"}</Text>
+          {horarios && typeof horarios === "object" ? (
+            ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].map((dia) => {
+              const info = horarios[dia];
+              if (!info) return null;
+              return (
+                <View key={dia} style={styles.horarioRow}>
+                  <Text style={styles.horarioDia}>
+                    {dia.charAt(0).toUpperCase() + dia.slice(1)}
+                  </Text>
+                  {info.abierto ? (
+                    <Text style={styles.horarioHora}>{info.abre} — {info.cierra}</Text>
+                  ) : (
+                    <Text style={styles.horarioCerrado}>Cerrado</Text>
+                  )}
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.sectionContent}>No especificado</Text>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -188,7 +207,27 @@ const styles = StyleSheet.create({
   section: { marginBottom: 24 },
   sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
   sectionContent: { color: COLORS.textMuted, fontSize: 15, lineHeight: 22 },
-  
+  horarioRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  horarioDia: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "600",
+    width: 100,
+  },
+  horarioHora: {
+    color: COLORS.green,
+    fontSize: 14,
+  },
+  horarioCerrado: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+  },
   classesList: { gap: 12, marginTop: 8 },
   classCard: {
     backgroundColor: COLORS.card,
