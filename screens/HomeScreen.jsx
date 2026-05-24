@@ -4,7 +4,7 @@ import {
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -57,6 +57,8 @@ export default function HomeScreen() {
   const [planId, setPlanId] = useState(null);
   const [nombreUsuario, setNombreUsuario] = useState('');
   const [loadingPlan, setLoadingPlan] = useState(true);
+  const [reservas, setReservas] = useState([]);
+  const [loadingReservas, setLoadingReservas] = useState(true);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
@@ -69,12 +71,11 @@ export default function HomeScreen() {
         try {
           const user = auth.currentUser;
           if (!user) return;
+
           const snap = await getDoc(doc(db, 'usuarios', user.uid));
           if (snap.exists() && active) {
             const data = snap.data();
             setPlanId(data.plan || null);
-
-            // Nombre: usa nombre+apellido si existen, sino la parte del email antes del @
             const nombre = (data.nombre || data.apellido)
               ? `${data.nombre || ''} ${data.apellido || ''}`.trim()
               : (user.email || '').split('@')[0];
@@ -84,6 +85,27 @@ export default function HomeScreen() {
           console.log('HomeScreen: no se pudo leer usuario', e?.code || e?.message);
         } finally {
           if (active) setLoadingPlan(false);
+        }
+
+        try {
+          const user = auth.currentUser;
+          if (!user) return;
+          const reservasSnap = await getDocs(query(
+            collection(db, 'reservas'),
+            where('userId', '==', user.uid),
+            limit(5)
+          ));
+          console.log('Reservas encontradas:', reservasSnap.size);
+          if (active) {
+            const lista = reservasSnap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
+            setReservas(lista);
+          }
+        } catch (e) {
+          console.log('HomeScreen: error cargando reservas:', e?.code, e?.message);
+        } finally {
+          if (active) setLoadingReservas(false);
         }
       };
 
@@ -160,34 +182,60 @@ export default function HomeScreen() {
 
         {/* Próximas reservas */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Próximas Reservas</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>Ver todas</Text>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Mis Reservas</Text>
         </View>
 
-        {mockData.reservations.map((res) => (
-          <View key={res.id} style={styles.reservationCard}>
+        {loadingReservas ? (
+          <ActivityIndicator color={COLORS.green} style={{ marginBottom: 16 }} />
+        ) : reservas.length === 0 ? (
+          <View style={styles.reservationCard}>
             <View style={styles.resIcon}>
-              <MaterialCommunityIcons name="dumbbell" size={22} color={COLORS.green} />
+              <MaterialCommunityIcons name="calendar-blank-outline" size={22} color={COLORS.textMuted} />
             </View>
             <View style={styles.resBody}>
-              <View style={styles.resTagWrapper}>
-                <Text style={styles.resTag}>{res.tag}</Text>
-              </View>
-              <Text style={styles.resName}>{res.name}</Text>
-              <Text style={styles.resDetail}>{res.time} en {res.gym}</Text>
-              <View style={styles.resLoc}>
-                <Ionicons name="location-outline" size={10} color={COLORS.textMuted} />
-                <Text style={styles.resLocText}>{res.address}</Text>
-              </View>
+              <Text style={[styles.resName, { color: COLORS.textMuted }]}>Sin reservas todavía</Text>
+              <Text style={styles.resDetail}>Explorá gimnasios y reservá tu lugar</Text>
             </View>
-            <TouchableOpacity style={styles.verBtn}>
-              <MaterialCommunityIcons name="calendar-outline" size={13} color={COLORS.textSecondary} />
-              <Text style={styles.verBtnText}>Ver</Text>
-            </TouchableOpacity>
           </View>
-        ))}
+        ) : (
+          reservas.map((res) => {
+            const fecha = res.fecha?.seconds
+              ? new Date(res.fecha.seconds * 1000).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              : '';
+            const esClase = res.tipo === 'clase';
+            return (
+              <View key={res.id} style={styles.reservationCard}>
+                <View style={styles.resIcon}>
+                  <MaterialCommunityIcons
+                    name={esClase ? 'account-group' : 'ticket-confirmation-outline'}
+                    size={22}
+                    color={COLORS.green}
+                  />
+                </View>
+                <View style={styles.resBody}>
+                  <View style={styles.resTagWrapper}>
+                    <Text style={styles.resTag}>{esClase ? 'Clase' : 'Pase'}</Text>
+                  </View>
+                  <Text style={styles.resName}>
+                    {esClase ? res.nombreClase : res.nombreGimnasio}
+                  </Text>
+                  {esClase && res.nombreGimnasio ? (
+                    <Text style={styles.resDetail}>{res.nombreGimnasio}</Text>
+                  ) : null}
+                  {esClase && res.diaHora ? (
+                    <Text style={styles.resDetail}>{res.diaHora}</Text>
+                  ) : null}
+                  {fecha ? (
+                    <View style={styles.resLoc}>
+                      <Ionicons name="calendar-outline" size={10} color={COLORS.textMuted} />
+                      <Text style={styles.resLocText}>Reservado el {fecha}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })
+        )}
 
         {/* Feedback ocupación */}
         <View style={styles.feedbackCard}>

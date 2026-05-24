@@ -8,11 +8,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import { db } from "../firebaseConfig";
+import { collection, doc, getDoc, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
   bg: "#0f1520",
@@ -31,27 +32,32 @@ export default function GymDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [gymData, setGymData] = useState(null);
   const [classes, setClasses] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+  const [reservando, setReservando] = useState(false);
 
   useEffect(() => {
-    async function fetchGymDetails() {
+    async function fetchData() {
       try {
+        const user = auth.currentUser;
         const gymDocRef = doc(db, "gimnasios", gymId);
         const clasesCollRef = collection(db, "gimnasios", gymId, "clases");
 
-        const [gymDocSnapshot, clasesSnapshot] = await Promise.all([
-          getDoc(gymDocRef),
-          getDocs(clasesCollRef),
-        ]);
-
-        if (gymDocSnapshot.exists()) {
-          setGymData(gymDocSnapshot.data());
+        const promises = [getDoc(gymDocRef), getDocs(clasesCollRef)];
+        if (user) {
+          promises.push(getDoc(doc(db, "usuarios", user.uid)));
         }
 
+        const [gymSnap, clasesSnap, userSnap] = await Promise.all(promises);
+
+        if (gymSnap.exists()) setGymData(gymSnap.data());
+
         const loadedClasses = [];
-        clasesSnapshot.forEach((doc) => {
-          loadedClasses.push({ id: doc.id, ...doc.data() });
-        });
+        clasesSnap.forEach((d) => loadedClasses.push({ id: d.id, ...d.data() }));
         setClasses(loadedClasses);
+
+        if (userSnap?.exists()) {
+          setUserRole(userSnap.data().rol);
+        }
       } catch (error) {
         console.error("Error fetching gym details:", error);
       } finally {
@@ -59,10 +65,55 @@ export default function GymDetailScreen({ route, navigation }) {
       }
     }
 
-    if (gymId) {
-      fetchGymDetails();
-    }
+    if (gymId) fetchData();
   }, [gymId]);
+
+  const reservarPase = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setReservando(true);
+    try {
+      await addDoc(collection(db, "reservas"), {
+        userId: user.uid,
+        tipo: "pase",
+        gymId,
+        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
+        fecha: serverTimestamp(),
+        estado: "pendiente",
+      });
+      Alert.alert("¡Reserva realizada!", `Tu pase para ${gymData?.nombreGimnasio || "el gimnasio"} fue reservado.`);
+    } catch (e) {
+      console.error("Error reservando pase:", e);
+      Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
+    } finally {
+      setReservando(false);
+    }
+  };
+
+  const reservarClase = async (cls) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setReservando(true);
+    try {
+      await addDoc(collection(db, "reservas"), {
+        userId: user.uid,
+        tipo: "clase",
+        gymId,
+        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
+        claseId: cls.id,
+        nombreClase: cls.nombre,
+        diaHora: cls.diaHora || "",
+        fecha: serverTimestamp(),
+        estado: "pendiente",
+      });
+      Alert.alert("¡Reserva realizada!", `Tu lugar en ${cls.nombre} fue reservado.`);
+    } catch (e) {
+      console.error("Error reservando clase:", e);
+      Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
+    } finally {
+      setReservando(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -86,13 +137,8 @@ export default function GymDetailScreen({ route, navigation }) {
     );
   }
 
-  const {
-    nombre = "Gimnasio",
-    descripcion,
-    horarios,
-    comodidades,
-    fotos = [],
-  } = gymData;
+  const { nombre = "Gimnasio", descripcion, horarios, comodidades, fotos = [] } = gymData;
+  const esCliente = userRole === "usuario";
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -114,6 +160,19 @@ export default function GymDetailScreen({ route, navigation }) {
               ))}
             </ScrollView>
           </View>
+        )}
+
+        {esCliente && (
+          <TouchableOpacity
+            style={[styles.reserveButton, reservando && styles.reserveButtonDisabled]}
+            onPress={reservarPase}
+            disabled={reservando}
+          >
+            <MaterialCommunityIcons name="ticket-confirmation-outline" size={20} color="#fff" />
+            <Text style={styles.reserveButtonText}>
+              {reservando ? "Reservando..." : "Reservar pase"}
+            </Text>
+          </TouchableOpacity>
         )}
 
         <View style={styles.section}>
@@ -173,6 +232,23 @@ export default function GymDetailScreen({ route, navigation }) {
                     <MaterialCommunityIcons name="account-tie" size={16} color={COLORS.textMuted} />
                     <Text style={styles.classDetailText}>{cls.profesor || "Profesor no especificado"}</Text>
                   </View>
+                  {cls.cupo && (
+                    <View style={styles.classDetails}>
+                      <MaterialCommunityIcons name="account-group-outline" size={16} color={COLORS.textMuted} />
+                      <Text style={styles.classDetailText}>Cupo: {cls.cupo}</Text>
+                    </View>
+                  )}
+                  {esCliente && (
+                    <TouchableOpacity
+                      style={[styles.reserveClassButton, reservando && styles.reserveButtonDisabled]}
+                      onPress={() => reservarClase(cls)}
+                      disabled={reservando}
+                    >
+                      <Text style={styles.reserveClassButtonText}>
+                        {reservando ? "Reservando..." : "Reservar lugar"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
             </View>
@@ -199,11 +275,24 @@ const styles = StyleSheet.create({
   back: { color: COLORS.green, fontSize: 15 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800", marginBottom: 20 },
   errorText: { color: COLORS.error, fontSize: 16, textAlign: "center", marginTop: 40 },
-  
+
   photosSection: { marginBottom: 24 },
   photosCarousel: { gap: 12, paddingRight: 22 },
   photo: { width: 300, height: 200, borderRadius: 16, backgroundColor: COLORS.card },
-  
+
+  reserveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: COLORS.green,
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 24,
+  },
+  reserveButtonDisabled: { opacity: 0.6 },
+  reserveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
   section: { marginBottom: 24 },
   sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
   sectionContent: { color: COLORS.textMuted, fontSize: 15, lineHeight: 22 },
@@ -239,4 +328,13 @@ const styles = StyleSheet.create({
   className: { color: COLORS.green, fontSize: 18, fontWeight: "700", marginBottom: 12 },
   classDetails: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   classDetailText: { color: COLORS.text, fontSize: 14 },
+
+  reserveClassButton: {
+    marginTop: 12,
+    backgroundColor: COLORS.greenDark,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  reserveClassButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 });
