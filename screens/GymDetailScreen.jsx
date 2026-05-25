@@ -31,7 +31,6 @@ export default function GymDetailScreen({ route, navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [gymData, setGymData] = useState(null);
-  const [classes, setClasses] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [userPlan, setUserPlan] = useState(null);
   const [reservando, setReservando] = useState(false);
@@ -41,20 +40,15 @@ export default function GymDetailScreen({ route, navigation }) {
       try {
         const user = auth.currentUser;
         const gymDocRef = doc(db, "gimnasios", gymId);
-        const clasesCollRef = collection(db, "gimnasios", gymId, "clases");
 
-        const promises = [getDoc(gymDocRef), getDocs(clasesCollRef)];
+        const promises = [getDoc(gymDocRef)];
         if (user) {
           promises.push(getDoc(doc(db, "usuarios", user.uid)));
         }
 
-        const [gymSnap, clasesSnap, userSnap] = await Promise.all(promises);
+        const [gymSnap, userSnap] = await Promise.all(promises);
 
         if (gymSnap.exists()) setGymData(gymSnap.data());
-
-        const loadedClasses = [];
-        clasesSnap.forEach((d) => loadedClasses.push({ id: d.id, ...d.data() }));
-        setClasses(loadedClasses);
 
         if (userSnap?.exists()) {
           setUserRole(userSnap.data().rol);
@@ -70,16 +64,16 @@ export default function GymDetailScreen({ route, navigation }) {
     if (gymId) fetchData();
   }, [gymId]);
 
-  const yaReservo = async (tipo, claseId = null) => {
+  const yaReservo = async (tipo) => {
     const user = auth.currentUser;
     if (!user) return false;
-    const conditions = [
+    const snap = await getDocs(query(
+      collection(db, "reservas"),
       where("userId", "==", user.uid),
       where("gymId", "==", gymId),
       where("tipo", "==", tipo),
-    ];
-    if (claseId) conditions.push(where("claseId", "==", claseId));
-    const snap = await getDocs(query(collection(db, "reservas"), ...conditions, limit(1)));
+      limit(1)
+    ));
     return !snap.empty;
   };
 
@@ -122,35 +116,6 @@ export default function GymDetailScreen({ route, navigation }) {
     }
   };
 
-  const reservarClase = async (cls) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    setReservando(true);
-    try {
-      if (await yaReservo("clase", cls.id)) {
-        Alert.alert("Ya reservaste", `Ya tenés un lugar reservado en ${cls.nombre}.`);
-        return;
-      }
-      await addDoc(collection(db, "reservas"), {
-        userId: user.uid,
-        tipo: "clase",
-        gymId,
-        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
-        claseId: cls.id,
-        nombreClase: cls.nombre,
-        diaHora: cls.diaHora || "",
-        fecha: serverTimestamp(),
-        estado: "pendiente",
-      });
-      Alert.alert("¡Reserva realizada!", `Tu lugar en ${cls.nombre} fue reservado.`);
-    } catch (e) {
-      console.error("Error reservando clase:", e);
-      Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
-    } finally {
-      setReservando(false);
-    }
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, styles.center]}>
@@ -173,7 +138,7 @@ export default function GymDetailScreen({ route, navigation }) {
     );
   }
 
-  const { nombre = "Gimnasio", descripcion, horarios, comodidades, fotos = [] } = gymData;
+  const { nombre = "Gimnasio", descripcion, horarios, fotos = [] } = gymData;
   const esCliente = userRole === "usuario";
 
   const hasCoords =
@@ -262,56 +227,36 @@ export default function GymDetailScreen({ route, navigation }) {
           )}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Comodidades</Text>
-          <Text style={styles.sectionContent}>{comodidades || "No especificado"}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Clases disponibles</Text>
-          {classes.length === 0 ? (
-            <Text style={styles.sectionContent}>No hay clases disponibles por el momento.</Text>
-          ) : (
-            <View style={styles.classesList}>
-              {classes.map((cls) => (
-                <View key={cls.id} style={styles.classCard}>
-                  <Text style={styles.className}>{cls.nombre}</Text>
-                  <View style={styles.classDetails}>
-                    <MaterialCommunityIcons name="calendar-clock" size={16} color={COLORS.textMuted} />
-                    <Text style={styles.classDetailText}>{cls.diaHora || "Horario no especificado"}</Text>
-                  </View>
-                  <View style={styles.classDetails}>
-                    <MaterialCommunityIcons name="timer-outline" size={16} color={COLORS.textMuted} />
-                    <Text style={styles.classDetailText}>
-                      {cls.duracion ? `${cls.duracion} min` : "Duración no especificada"}
-                    </Text>
-                  </View>
-                  <View style={styles.classDetails}>
-                    <MaterialCommunityIcons name="account-tie" size={16} color={COLORS.textMuted} />
-                    <Text style={styles.classDetailText}>{cls.profesor || "Profesor no especificado"}</Text>
-                  </View>
-                  {cls.cupo && (
-                    <View style={styles.classDetails}>
-                      <MaterialCommunityIcons name="account-group-outline" size={16} color={COLORS.textMuted} />
-                      <Text style={styles.classDetailText}>Cupo: {cls.cupo}</Text>
-                    </View>
-                  )}
-                  {esCliente && (
-                    <TouchableOpacity
-                      style={[styles.reserveClassButton, reservando && styles.reserveButtonDisabled]}
-                      onPress={() => reservarClase(cls)}
-                      disabled={reservando}
-                    >
-                      <Text style={styles.reserveClassButtonText}>
-                        {reservando ? "Reservando..." : "Reservar lugar"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+        {gymData.actividades?.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Actividades</Text>
+            <View style={styles.chipsWrap}>
+              {gymData.actividades.map((act) => (
+                <View key={act} style={styles.activityChip}>
+                  <Text style={styles.activityChipText}>{act}</Text>
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        )}
+
+        {(Array.isArray(gymData.comodidades) ? gymData.comodidades.length > 0 : gymData.comodidades) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Comodidades</Text>
+            {Array.isArray(gymData.comodidades) ? (
+              <View style={styles.chipsWrap}>
+                {gymData.comodidades.map((com) => (
+                  <View key={com} style={styles.amenityChip}>
+                    <Text style={styles.amenityChipText}>{com}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.sectionContent}>{gymData.comodidades}</Text>
+            )}
+          </View>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -393,24 +338,23 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 14,
   },
-  classesList: { gap: 12, marginTop: 8 },
-  classCard: {
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  activityChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#0a1f0e",
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  activityChipText: { color: COLORS.green, fontSize: 13, fontWeight: "600" },
+  amenityChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  className: { color: COLORS.green, fontSize: 18, fontWeight: "700", marginBottom: 12 },
-  classDetails: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  classDetailText: { color: COLORS.text, fontSize: 14 },
-
-  reserveClassButton: {
-    marginTop: 12,
-    backgroundColor: COLORS.greenDark,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  reserveClassButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  amenityChipText: { color: COLORS.textMuted, fontSize: 13 },
 });

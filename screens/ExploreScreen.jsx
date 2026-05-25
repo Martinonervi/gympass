@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   Pressable,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
@@ -28,10 +29,15 @@ const COLORS = {
 };
 
 const DISTANCE_OPTIONS = [
-  { label: "Todos", value: null },
+  { label: "Cualquier distancia", value: null },
   { label: "Menos de 1 km", value: 1 },
   { label: "Menos de 5 km", value: 5 },
   { label: "Menos de 10 km", value: 10 },
+];
+
+const ACTIVIDADES_PRESET = [
+  "Musculación", "Spinning", "Yoga", "Pilates", "Funcional",
+  "Natación", "Stretching", "Crossfit", "Boxeo", "Zumba",
 ];
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
@@ -53,16 +59,14 @@ export default function ExploreScreen({ navigation }) {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [distanceFilter, setDistanceFilter] = useState(null);
+  const [activityFilter, setActivityFilter] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   useEffect(() => {
     async function fetchGyms() {
       try {
         const snapshot = await getDocs(collection(db, "gimnasios"));
-        const loadedGyms = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const loadedGyms = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setGyms(loadedGyms);
       } catch (error) {
         console.error("Error fetching gyms:", error);
@@ -79,14 +83,8 @@ export default function ExploreScreen({ navigation }) {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
-
-        // Caché primero para respuesta rápida
         const cached = await Location.getLastKnownPositionAsync({});
-        if (cached) {
-          setUserLocation({ lat: cached.coords.latitude, lng: cached.coords.longitude });
-        }
-
-        // Actualizar con posición fresca
+        if (cached) setUserLocation({ lat: cached.coords.latitude, lng: cached.coords.longitude });
         const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
         setUserLocation({ lat: fresh.coords.latitude, lng: fresh.coords.longitude });
       } catch (e) {
@@ -102,12 +100,12 @@ export default function ExploreScreen({ navigation }) {
     .filter((g) => {
       const name = g.nombreGimnasio || g.nombre || "";
       if (query && !name.toLowerCase().includes(query.toLowerCase())) return false;
+      if (activityFilter.length > 0 && !activityFilter.some((a) => (g.actividades || []).includes(a))) return false;
       if (distanceFilter !== null && userLocation) {
         const lat = Number(g.latitude);
         const lng = Number(g.longitude);
         if (isNaN(lat) || isNaN(lng)) return false;
-        const dist = getDistanceKm(userLocation.lat, userLocation.lng, lat, lng);
-        if (dist > distanceFilter) return false;
+        if (getDistanceKm(userLocation.lat, userLocation.lng, lat, lng) > distanceFilter) return false;
       }
       return true;
     })
@@ -116,10 +114,7 @@ export default function ExploreScreen({ navigation }) {
       const lat = Number(g.latitude);
       const lng = Number(g.longitude);
       if (isNaN(lat) || isNaN(lng)) return { ...g, distance: null };
-      return {
-        ...g,
-        distance: getDistanceKm(userLocation.lat, userLocation.lng, lat, lng),
-      };
+      return { ...g, distance: getDistanceKm(userLocation.lat, userLocation.lng, lat, lng) };
     })
     .sort((a, b) => {
       if (a.distance === null && b.distance === null) return 0;
@@ -128,8 +123,12 @@ export default function ExploreScreen({ navigation }) {
       return a.distance - b.distance;
     });
 
-  const activeFilterLabel =
-    DISTANCE_OPTIONS.find((o) => o.value === distanceFilter)?.label || "Todos";
+  const hasActiveFilters = distanceFilter !== null || activityFilter.length > 0;
+
+  const clearAllFilters = () => {
+    setDistanceFilter(null);
+    setActivityFilter([]);
+  };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -151,6 +150,11 @@ export default function ExploreScreen({ navigation }) {
       <Text style={styles.cardAddress} numberOfLines={1}>
         {item.direccion || "Dirección no especificada"}
       </Text>
+      {item.actividades?.length > 0 && (
+        <Text style={styles.cardActividades} numberOfLines={1}>
+          {item.actividades.slice(0, 4).join(" · ")}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 
@@ -188,35 +192,50 @@ export default function ExploreScreen({ navigation }) {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => navigation.navigate("Map")}
-        >
+        <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate("Map")}>
           <Ionicons name="map-outline" size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.iconButton, distanceFilter !== null && styles.iconButtonActive]}
+          style={[styles.iconButton, hasActiveFilters && styles.iconButtonActive]}
           onPress={() => setShowFilterModal(true)}
         >
           <MaterialCommunityIcons
             name="tune-variant"
             size={20}
-            color={distanceFilter !== null ? COLORS.bg : COLORS.textMuted}
+            color={hasActiveFilters ? COLORS.bg : COLORS.textMuted}
           />
         </TouchableOpacity>
       </View>
 
-      {distanceFilter !== null && (
+      {hasActiveFilters && (
         <View style={styles.activeFilterRow}>
-          <MaterialCommunityIcons name="map-marker-radius-outline" size={14} color={COLORS.green} />
-          <Text style={styles.activeFilterText}>{activeFilterLabel}</Text>
-          {locationLoading && (
-            <ActivityIndicator size="small" color={COLORS.green} style={{ marginLeft: 6 }} />
+          {distanceFilter !== null && (
+            <View style={styles.filterChip}>
+              <MaterialCommunityIcons name="map-marker-radius-outline" size={12} color={COLORS.green} />
+              <Text style={styles.filterChipText}>
+                {DISTANCE_OPTIONS.find((o) => o.value === distanceFilter)?.label}
+              </Text>
+              <TouchableOpacity onPress={() => setDistanceFilter(null)}>
+                <MaterialCommunityIcons name="close" size={12} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
           )}
-          <TouchableOpacity onPress={() => setDistanceFilter(null)} style={{ marginLeft: 4 }}>
-            <MaterialCommunityIcons name="close" size={14} color={COLORS.textMuted} />
-          </TouchableOpacity>
+          {activityFilter.map((act) => (
+            <View key={act} style={styles.filterChip}>
+              <MaterialCommunityIcons name="dumbbell" size={12} color={COLORS.green} />
+              <Text style={styles.filterChipText}>{act}</Text>
+              <TouchableOpacity onPress={() => setActivityFilter((prev) => prev.filter((a) => a !== act))}>
+                <MaterialCommunityIcons name="close" size={12} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {locationLoading && <ActivityIndicator size="small" color={COLORS.green} />}
+          {(distanceFilter !== null && activityFilter.length > 0) && (
+            <TouchableOpacity onPress={clearAllFilters}>
+              <Text style={styles.clearAll}>Limpiar todo</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -242,34 +261,61 @@ export default function ExploreScreen({ navigation }) {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
           <Pressable style={styles.modalBox} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Filtrar por distancia</Text>
-            {DISTANCE_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={String(opt.value)}
-                style={[
-                  styles.modalOption,
-                  distanceFilter === opt.value && styles.modalOptionActive,
-                ]}
-                onPress={() => {
-                  setDistanceFilter(opt.value);
-                  setShowFilterModal(false);
-                }}
-              >
-                <MaterialCommunityIcons
-                  name={opt.value === null ? "filter-off-outline" : "map-marker-radius-outline"}
-                  size={18}
-                  color={distanceFilter === opt.value ? COLORS.bg : COLORS.green}
-                />
-                <Text
-                  style={[
-                    styles.modalOptionText,
-                    distanceFilter === opt.value && styles.modalOptionTextActive,
-                  ]}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Filtros</Text>
+
+              <Text style={styles.modalSectionTitle}>Distancia</Text>
+              {DISTANCE_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={String(opt.value)}
+                  style={[styles.modalOption, distanceFilter === opt.value && styles.modalOptionActive]}
+                  onPress={() => setDistanceFilter(opt.value)}
                 >
-                  {opt.label}
-                </Text>
+                  <MaterialCommunityIcons
+                    name={opt.value === null ? "filter-off-outline" : "map-marker-radius-outline"}
+                    size={18}
+                    color={distanceFilter === opt.value ? COLORS.bg : COLORS.green}
+                  />
+                  <Text style={[styles.modalOptionText, distanceFilter === opt.value && styles.modalOptionTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={styles.modalSectionTitle}>Actividad</Text>
+              <View style={styles.activityChipsWrap}>
+                <TouchableOpacity
+                  style={[styles.activityChip, activityFilter.length === 0 && styles.activityChipActive]}
+                  onPress={() => setActivityFilter([])}
+                >
+                  <Text style={[styles.activityChipText, activityFilter.length === 0 && styles.activityChipTextActive]}>
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                {ACTIVIDADES_PRESET.map((act) => (
+                  <TouchableOpacity
+                    key={act}
+                    style={[styles.activityChip, activityFilter.includes(act) && styles.activityChipActive]}
+                    onPress={() =>
+                      setActivityFilter((prev) =>
+                        prev.includes(act) ? prev.filter((a) => a !== act) : [...prev, act]
+                      )
+                    }
+                  >
+                    <Text style={[styles.activityChipText, activityFilter.includes(act) && styles.activityChipTextActive]}>
+                      {act}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={() => setShowFilterModal(false)}
+              >
+                <Text style={styles.applyButtonText}>Aplicar</Text>
               </TouchableOpacity>
-            ))}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -280,106 +326,56 @@ export default function ExploreScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   center: { justifyContent: "center", alignItems: "center" },
-  header: {
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 10,
-  },
+  header: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 10 },
   title: { color: COLORS.text, fontSize: 26, fontWeight: "800" },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 22,
-    gap: 10,
-    marginBottom: 8,
-  },
+  searchRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 22, gap: 10, marginBottom: 8 },
   searchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 8,
+    flex: 1, flexDirection: "row", alignItems: "center",
+    backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14,
+    paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border, gap: 8,
   },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
-  iconButton: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  iconButton: { backgroundColor: COLORS.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: COLORS.border },
+  iconButtonActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
+  activeFilterRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 22, marginBottom: 10, gap: 6, flexWrap: "wrap" },
+  filterChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#0a1f0e", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: COLORS.green,
   },
-  iconButtonActive: {
-    backgroundColor: COLORS.green,
-    borderColor: COLORS.green,
-  },
-  activeFilterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 22,
-    marginBottom: 10,
-    gap: 4,
-  },
-  activeFilterText: { color: COLORS.green, fontSize: 12, fontWeight: "600" },
+  filterChipText: { color: COLORS.green, fontSize: 12, fontWeight: "600" },
+  clearAll: { color: COLORS.textMuted, fontSize: 12, textDecorationLine: "underline" },
   listContainer: { paddingHorizontal: 22, paddingBottom: 40 },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 14,
-  },
+  card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   cardTitle: { color: COLORS.green, fontSize: 18, fontWeight: "700", flex: 1 },
   distanceBadge: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-    backgroundColor: "#1e2a36",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginLeft: 8,
+    color: COLORS.textMuted, fontSize: 12, fontWeight: "600",
+    backgroundColor: "#1e2a36", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8,
   },
-  cardAddress: { color: COLORS.textMuted, fontSize: 14 },
-  emptyText: {
-    color: COLORS.textMuted,
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 40,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: COLORS.overlay,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalBox: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 24,
-    width: "80%",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  modalTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 20 },
+  cardAddress: { color: COLORS.textMuted, fontSize: 14, marginBottom: 4 },
+  cardActividades: { color: "#4a6a5a", fontSize: 12, marginTop: 2 },
+  emptyText: { color: COLORS.textMuted, fontSize: 16, textAlign: "center", marginTop: 40 },
+  modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "center", alignItems: "center" },
+  modalBox: { backgroundColor: COLORS.card, borderRadius: 20, padding: 24, width: "88%", borderWidth: 1, borderColor: COLORS.border, maxHeight: "80%" },
+  modalTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  modalSectionTitle: { color: COLORS.textMuted, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 6 },
   modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12,
+    marginBottom: 6, borderWidth: 1, borderColor: COLORS.border,
   },
   modalOptionActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
-  modalOptionText: { color: COLORS.text, fontSize: 15 },
+  modalOptionText: { color: COLORS.text, fontSize: 14 },
   modalOptionTextActive: { color: COLORS.bg, fontWeight: "700" },
+  activityChipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
+  activityChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.input,
+  },
+  activityChipActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
+  activityChipText: { color: COLORS.textMuted, fontSize: 13, fontWeight: "500" },
+  activityChipTextActive: { color: COLORS.bg, fontWeight: "700" },
+  applyButton: { backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  applyButtonText: { color: COLORS.text, fontSize: 15, fontWeight: "700" },
 });

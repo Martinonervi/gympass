@@ -24,22 +24,15 @@ import { CLOUDINARY } from "../cloudinaryConfig";
 
 const uploadToCloudinary = async (uri, userId, index) => {
   const formData = new FormData();
-  formData.append("file", {
-    uri,
-    type: "image/jpeg",
-    name: `gym_${userId}_${index}_${Date.now()}.jpg`,
-  });
+  formData.append("file", { uri, type: "image/jpeg", name: `gym_${userId}_${index}_${Date.now()}.jpg` });
   formData.append("upload_preset", CLOUDINARY.uploadPreset);
   formData.append("folder", `gimnasios/${userId}`);
-
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`,
     { method: "POST", body: formData }
   );
-
   if (!res.ok) throw new Error("Error al subir imagen a Cloudinary");
-  const data = await res.json();
-  return data.secure_url;
+  return (await res.json()).secure_url;
 };
 
 const COLORS = {
@@ -74,7 +67,15 @@ const HORARIOS_DEFAULT = {
   domingo:   { abre: "00:00", cierra: "00:00", abierto: false },
 };
 
-// Convierte "08:30" a un objeto Date (solo importa la hora)
+export const ACTIVIDADES_PRESET = [
+  "Musculación", "Spinning", "Yoga", "Pilates", "Funcional",
+  "Natación", "Stretching", "Crossfit", "Boxeo", "Zumba",
+];
+
+const COMODIDADES_PRESET = [
+  "Duchas", "WiFi", "Lockers", "Estacionamiento", "Vestuarios", "Cafetería",
+];
+
 function horaStringADate(horaStr) {
   const [h, m] = horaStr.split(":").map(Number);
   const d = new Date();
@@ -82,7 +83,6 @@ function horaStringADate(horaStr) {
   return d;
 }
 
-// Convierte un Date a "08:30"
 function dateAHoraString(date) {
   const h = date.getHours().toString().padStart(2, "0");
   const m = date.getMinutes().toString().padStart(2, "0");
@@ -95,15 +95,12 @@ export default function ManageGymDetailsScreen({ navigation }) {
 
   const [descripcion, setDescripcion] = useState("");
   const [horarios, setHorarios] = useState(HORARIOS_DEFAULT);
-  const [comodidades, setComodidades] = useState("");
+  const [actividades, setActividades] = useState([]);
+  const [comodidades, setComodidades] = useState([]);
+  const [otraActividad, setOtraActividad] = useState("");
   const [fotos, setFotos] = useState([]);
 
-  // Control del picker de hora
-  const [picker, setPicker] = useState({
-    visible: false,
-    dia: null,
-    campo: null,
-  });
+  const [picker, setPicker] = useState({ visible: false, dia: null, campo: null });
   const [tempHora, setTempHora] = useState(new Date());
 
   useEffect(() => {
@@ -111,15 +108,13 @@ export default function ManageGymDetailsScreen({ navigation }) {
       try {
         const user = auth.currentUser;
         if (!user) { setLoading(false); return; }
-
         const snap = await getDoc(doc(db, "gimnasios", user.uid));
         if (snap.exists()) {
           const data = snap.data();
           setDescripcion(data.descripcion || "");
-          setComodidades(data.comodidades || "");
+          setActividades(data.actividades || []);
+          setComodidades(Array.isArray(data.comodidades) ? data.comodidades : []);
           setFotos(data.fotos || []);
-
-          // Si ya tenía horarios como objeto los usamos, sino los defaults
           if (data.horarios && typeof data.horarios === "object" && Object.keys(data.horarios).length > 0) {
             setHorarios({ ...HORARIOS_DEFAULT, ...data.horarios });
           }
@@ -140,29 +135,35 @@ export default function ManageGymDetailsScreen({ navigation }) {
     setPicker({ visible: true, dia, campo });
   }
 
+  function aplicarHora(dia, campo, horaStr) {
+    if (campo === "abre" && horaStr >= horarios[dia].cierra) {
+      Alert.alert("Horario inválido", "La apertura debe ser antes que el cierre.");
+      return false;
+    }
+    if (campo === "cierra" && horaStr <= horarios[dia].abre) {
+      Alert.alert("Horario inválido", "El cierre debe ser después de la apertura.");
+      return false;
+    }
+    setHorarios((prev) => ({
+      ...prev,
+      [dia]: { ...prev[dia], [campo]: horaStr },
+    }));
+    return true;
+  }
+
   function onPickerChange(event, selectedDate) {
     if (!selectedDate) return;
     if (Platform.OS === "android") {
-      // En Android confirmamos directo
       setPicker((p) => ({ ...p, visible: false }));
       if (event.type === "dismissed") return;
-      const horaStr = dateAHoraString(selectedDate);
-      setHorarios((prev) => ({
-        ...prev,
-        [picker.dia]: { ...prev[picker.dia], [picker.campo]: horaStr },
-      }));
+      aplicarHora(picker.dia, picker.campo, dateAHoraString(selectedDate));
     } else {
-      // En iOS solo actualizamos el valor temporal mientras scrollea
       setTempHora(selectedDate);
     }
   }
 
   function confirmarHoraIOS() {
-    const horaStr = dateAHoraString(tempHora);
-    setHorarios((prev) => ({
-      ...prev,
-      [picker.dia]: { ...prev[picker.dia], [picker.campo]: horaStr },
-    }));
+    aplicarHora(picker.dia, picker.campo, dateAHoraString(tempHora));
     setPicker((p) => ({ ...p, visible: false }));
   }
 
@@ -171,10 +172,24 @@ export default function ManageGymDetailsScreen({ navigation }) {
   }
 
   function toggleDia(dia) {
-    setHorarios((prev) => ({
-      ...prev,
-      [dia]: { ...prev[dia], abierto: !prev[dia].abierto },
-    }));
+    setHorarios((prev) => ({ ...prev, [dia]: { ...prev[dia], abierto: !prev[dia].abierto } }));
+  }
+
+  function toggleActividad(act) {
+    setActividades((prev) => prev.includes(act) ? prev.filter((a) => a !== act) : [...prev, act]);
+  }
+
+  function toggleComodidad(com) {
+    setComodidades((prev) => prev.includes(com) ? prev.filter((c) => c !== com) : [...prev, com]);
+  }
+
+  function agregarOtraActividad() {
+    const trimmed = otraActividad.trim();
+    if (!trimmed) return;
+    if (!actividades.includes(trimmed)) {
+      setActividades((prev) => [...prev, trimmed]);
+    }
+    setOtraActividad("");
   }
 
   const handlePickImage = async () => {
@@ -188,9 +203,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
       allowsEditing: true,
       quality: 0.7,
     });
-    if (!result.canceled) {
-      setFotos((prev) => [...prev, result.assets[0].uri]);
-    }
+    if (!result.canceled) setFotos((prev) => [...prev, result.assets[0].uri]);
   };
 
   const handleRemovePhoto = (index) => {
@@ -213,15 +226,14 @@ export default function ManageGymDetailsScreen({ navigation }) {
       await setDoc(doc(db, "gimnasios", user.uid), {
         descripcion: descripcion.trim(),
         horarios,
-        comodidades: comodidades.trim(),
+        actividades,
+        comodidades,
         fotos: fotosSubidas,
       }, { merge: true });
 
-      Alert.alert(
-        "Éxito",
-        "Los detalles del gimnasio se actualizaron correctamente.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
+      Alert.alert("Éxito", "Los detalles del gimnasio se actualizaron correctamente.", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
     } catch (error) {
       Alert.alert("Error", "No se pudieron guardar los detalles.");
       console.error(error);
@@ -234,12 +246,12 @@ export default function ManageGymDetailsScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.green} />
-        </View>
+        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.green} /></View>
       </SafeAreaView>
     );
   }
+
+  const actividadesCustom = actividades.filter((a) => !ACTIVIDADES_PRESET.includes(a));
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -252,7 +264,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
         </TouchableOpacity>
 
         <Text style={styles.title}>Detalles del Gimnasio</Text>
-        <Text style={styles.subtitle}>Agregá fotos y descripción a tu perfil público.</Text>
+        <Text style={styles.subtitle}>Agregá fotos, descripción y actividades a tu perfil público.</Text>
 
         <View style={styles.card}>
           {/* Descripción */}
@@ -280,24 +292,15 @@ export default function ManageGymDetailsScreen({ navigation }) {
                     onValueChange={() => toggleDia(key)}
                     trackColor={{ false: COLORS.border, true: COLORS.greenDark }}
                   />
-                  <Text style={[styles.diaLabel, !dia.abierto && styles.diaCerrado]}>
-                    {label}
-                  </Text>
+                  <Text style={[styles.diaLabel, !dia.abierto && styles.diaCerrado]}>{label}</Text>
                 </View>
-
                 {dia.abierto ? (
                   <View style={styles.diaHoras}>
-                    <TouchableOpacity
-                      style={styles.horaPicker}
-                      onPress={() => abrirPicker(key, "abre")}
-                    >
+                    <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker(key, "abre")}>
                       <Text style={styles.horaText}>{dia.abre}</Text>
                     </TouchableOpacity>
                     <Text style={styles.horaSep}>—</Text>
-                    <TouchableOpacity
-                      style={styles.horaPicker}
-                      onPress={() => abrirPicker(key, "cierra")}
-                    >
+                    <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker(key, "cierra")}>
                       <Text style={styles.horaText}>{dia.cierra}</Text>
                     </TouchableOpacity>
                   </View>
@@ -308,15 +311,72 @@ export default function ManageGymDetailsScreen({ navigation }) {
             );
           })}
 
+          {/* Actividades */}
+          <Text style={styles.sectionTitle}>Actividades disponibles</Text>
+          <Text style={styles.sectionHint}>Tocá para seleccionar las que ofrece tu gimnasio.</Text>
+          <View style={styles.chipsWrap}>
+            {ACTIVIDADES_PRESET.map((act) => {
+              const sel = actividades.includes(act);
+              return (
+                <TouchableOpacity
+                  key={act}
+                  style={[styles.chip, sel && styles.chipActive]}
+                  onPress={() => toggleActividad(act)}
+                >
+                  <Text style={[styles.chipText, sel && styles.chipTextActive]}>{act}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {actividadesCustom.length > 0 && (
+            <View style={styles.chipsWrap}>
+              {actividadesCustom.map((act) => (
+                <TouchableOpacity
+                  key={act}
+                  style={[styles.chip, styles.chipActive, styles.chipCustom]}
+                  onPress={() => toggleActividad(act)}
+                >
+                  <MaterialCommunityIcons name="close" size={12} color={COLORS.bg} style={{ marginRight: 4 }} />
+                  <Text style={[styles.chipText, styles.chipTextActive]}>{act}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <Text style={styles.label}>Agregar actividad personalizada</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={otraActividad}
+              onChangeText={setOtraActividad}
+              placeholder="Ej: Pole Dance, Taekwondo..."
+              placeholderTextColor={COLORS.textMuted}
+              returnKeyType="done"
+              onSubmitEditing={agregarOtraActividad}
+            />
+            <TouchableOpacity style={styles.addChipButton} onPress={agregarOtraActividad}>
+              <MaterialCommunityIcons name="plus" size={22} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+
           {/* Comodidades */}
           <Text style={styles.sectionTitle}>Comodidades</Text>
-          <TextInput
-            style={styles.input}
-            value={comodidades}
-            onChangeText={setComodidades}
-            placeholder="Ej: WiFi, Duchas, Lockers"
-            placeholderTextColor={COLORS.textMuted}
-          />
+          <Text style={styles.sectionHint}>Tocá para indicar qué tiene tu gimnasio.</Text>
+          <View style={styles.chipsWrap}>
+            {COMODIDADES_PRESET.map((com) => {
+              const sel = comodidades.includes(com);
+              return (
+                <TouchableOpacity
+                  key={com}
+                  style={[styles.chip, sel && styles.chipActive]}
+                  onPress={() => toggleComodidad(com)}
+                >
+                  <Text style={[styles.chipText, sel && styles.chipTextActive]}>{com}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Fotos */}
           <Text style={styles.sectionTitle}>Fotos del gimnasio</Text>
@@ -342,15 +402,12 @@ export default function ManageGymDetailsScreen({ navigation }) {
             onPress={handleSave}
             disabled={saving}
           >
-            {saving
-              ? <ActivityIndicator color={COLORS.text} />
-              : <Text style={styles.buttonText}>Guardar detalles</Text>
-            }
+            {saving ? <ActivityIndicator color={COLORS.text} /> : <Text style={styles.buttonText}>Guardar detalles</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Picker de hora — Modal en iOS, inline en Android */}
+      {/* Picker de hora */}
       {Platform.OS === "ios" ? (
         <Modal visible={picker.visible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
@@ -394,28 +451,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { padding: 22, paddingBottom: 40 },
-
   backButton: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 24, alignSelf: "flex-start" },
   back: { color: COLORS.green, fontSize: 15 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
   subtitle: { color: COLORS.textMuted, marginTop: 6, marginBottom: 22 },
-
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 22,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  sectionTitle: {
-    color: COLORS.green,
-    fontSize: 16,
-    fontWeight: "700",
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  label: { color: COLORS.text, fontSize: 14, marginBottom: 8, marginTop: 12 },
+  card: { backgroundColor: COLORS.card, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: COLORS.border },
+  sectionTitle: { color: COLORS.green, fontSize: 16, fontWeight: "700", marginTop: 22, marginBottom: 6 },
+  sectionHint: { color: COLORS.textMuted, fontSize: 12, marginBottom: 12 },
+  label: { color: COLORS.text, fontSize: 14, marginBottom: 8, marginTop: 14 },
   input: {
     backgroundColor: COLORS.input,
     color: COLORS.text,
@@ -425,9 +468,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  textArea: { minHeight: 100 },
+  textArea: { minHeight: 100, textAlignVertical: "top" },
 
-  // Fila de cada día
   diaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -452,61 +494,38 @@ const styles = StyleSheet.create({
   horaSep: { color: COLORS.textMuted, fontSize: 14 },
   cerradoText: { color: COLORS.textMuted, fontSize: 13 },
 
-  button: {
-    backgroundColor: COLORS.greenDark,
-    borderRadius: 14,
-    paddingVertical: 15,
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  chip: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.input,
   },
+  chipActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
+  chipCustom: { backgroundColor: COLORS.greenDark, borderColor: COLORS.greenDark },
+  chipText: { color: COLORS.textMuted, fontSize: 13, fontWeight: "500" },
+  chipTextActive: { color: COLORS.bg, fontWeight: "700" },
+  inputRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  addChipButton: { backgroundColor: COLORS.greenDark, borderRadius: 12, padding: 13 },
+
+  button: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 24 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
-
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: COLORS.green,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 16,
-  },
+  secondaryButton: { borderWidth: 1, borderColor: COLORS.green, borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 16 },
   secondaryButtonText: { color: COLORS.green, fontSize: 14, fontWeight: "700" },
-
   photosScroll: { marginTop: 8, marginBottom: 8 },
   photoContainer: { position: "relative", marginRight: 12 },
   photo: { width: 100, height: 100, borderRadius: 12 },
-  removeButton: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    backgroundColor: COLORS.red,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  removeButton: { position: "absolute", top: -6, right: -6, backgroundColor: COLORS.red, width: 24, height: 24, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   removeButtonText: { color: COLORS.text, fontSize: 12, fontWeight: "bold" },
 
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalCard: {
-    backgroundColor: "#1a2535",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 30,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalCard: { backgroundColor: "#1a2535", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalCancel: { color: COLORS.textMuted, fontSize: 16 },
   modalConfirm: { color: COLORS.green, fontSize: 16, fontWeight: "700" },
   iosPicker: { backgroundColor: "#1a2535" },

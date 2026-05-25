@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,17 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
+  Alert,
+  Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+  collection, addDoc, serverTimestamp,
+  doc, getDoc, updateDoc,
+} from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -26,6 +33,40 @@ const COLORS = {
   input: "#111827",
   error: "#ef4444",
 };
+
+const DIAS = [
+  { key: "lunes",     short: "Lu" },
+  { key: "martes",    short: "Ma" },
+  { key: "miercoles", short: "Mi" },
+  { key: "jueves",    short: "Ju" },
+  { key: "viernes",   short: "Vi" },
+  { key: "sabado",    short: "Sá" },
+  { key: "domingo",   short: "Do" },
+];
+
+const DIA_LABELS = {
+  lunes: "Lunes", martes: "Martes", miercoles: "Miércoles",
+  jueves: "Jueves", viernes: "Viernes", sabado: "Sábado", domingo: "Domingo",
+};
+
+function horaStringADate(horaStr) {
+  const [h, m] = horaStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function dateAHoraString(date) {
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function calcDuracion(inicio, fin) {
+  const [h1, m1] = inicio.split(":").map(Number);
+  const [h2, m2] = fin.split(":").map(Number);
+  return (h2 * 60 + m2) - (h1 * 60 + m1);
+}
 
 // ─── Snackbar ────────────────────────────────────────────────────────────────
 function Snackbar({ message, type = "error", visible }) {
@@ -47,14 +88,9 @@ function Snackbar({ message, type = "error", visible }) {
   }, [visible]);
 
   const isSuccess = type === "success";
-
   return (
     <Animated.View
-      style={[
-        styles.snackbar,
-        isSuccess ? styles.snackbarSuccess : styles.snackbarError,
-        { transform: [{ translateY }], opacity },
-      ]}
+      style={[styles.snackbar, isSuccess ? styles.snackbarSuccess : styles.snackbarError, { transform: [{ translateY }], opacity }]}
       pointerEvents="none"
     >
       <Text style={styles.snackbarIcon}>{isSuccess ? "✓" : "✕"}</Text>
@@ -66,48 +102,126 @@ function Snackbar({ message, type = "error", visible }) {
 function useSnackbar() {
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "error" });
   const timerRef = useRef(null);
-
   function showSnackbar(message, type = "error", duration = 3500) {
     if (timerRef.current) clearTimeout(timerRef.current);
     setSnackbar({ visible: true, message, type });
     timerRef.current = setTimeout(() => setSnackbar((p) => ({ ...p, visible: false })), duration);
   }
-
   return { snackbar, showSnackbar };
 }
 
 // ─── AddClassScreen ──────────────────────────────────────────────────────────
-export default function AddClassScreen({ navigation }) {
+export default function AddClassScreen({ route, navigation }) {
+  const claseId = route?.params?.claseId || null;
+  const isEditMode = !!claseId;
+
+  const [loadingGym, setLoadingGym] = useState(true);
   const [saving, setSaving] = useState(false);
   const { snackbar, showSnackbar } = useSnackbar();
 
-  const [nombre, setNombre] = useState("");
-  const [diaHora, setDiaHora] = useState("");
-  const [duracion, setDuracion] = useState("");
+  const [gymActividades, setGymActividades] = useState([]);
+  const [gymHorarios, setGymHorarios] = useState({});
+  const [closedDias, setClosedDias] = useState([]);
+  const [actividad, setActividad] = useState("");
+  const [dia, setDia] = useState("");
+  const [horaInicio, setHoraInicio] = useState("08:00");
+  const [horaFin, setHoraFin] = useState("09:00");
   const [cupo, setCupo] = useState("");
   const [profesor, setProfesor] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
+  const [picker, setPicker] = useState({ visible: false, campo: null });
+  const [tempHora, setTempHora] = useState(new Date());
+
+  useEffect(() => {
+    async function fetchData() {
+      const user = auth.currentUser;
+      if (!user) { setLoadingGym(false); return; }
+      try {
+        const gymSnap = await getDoc(doc(db, "gimnasios", user.uid));
+        if (gymSnap.exists()) {
+          const gymData = gymSnap.data();
+          setGymActividades(gymData.actividades || []);
+          const horarios = gymData.horarios || {};
+          setGymHorarios(horarios);
+          setClosedDias(DIAS.map((d) => d.key).filter((d) => horarios[d]?.abierto === false));
+        }
+
+        if (isEditMode) {
+          const claseSnap = await getDoc(doc(db, "gimnasios", user.uid, "clases", claseId));
+          if (claseSnap.exists()) {
+            const cls = claseSnap.data();
+            setActividad(cls.actividad || "");
+            setDia(cls.dia || "");
+            setHoraInicio(cls.horaInicio || "08:00");
+            setHoraFin(cls.horaFin || "09:00");
+            setCupo(cls.cupo ? String(cls.cupo) : "");
+            setProfesor(cls.profesor || "");
+            setDescripcion(cls.descripcion || "");
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching data:", e);
+      } finally {
+        setLoadingGym(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  function abrirPicker(campo) {
+    setTempHora(horaStringADate(campo === "inicio" ? horaInicio : horaFin));
+    setPicker({ visible: true, campo });
+  }
+
+  function aplicarHoraPicker(campo, horaStr) {
+    if (campo === "inicio") {
+      if (horaStr >= horaFin) {
+        Alert.alert("Horario inválido", "La hora de inicio debe ser antes que la de fin.");
+        return false;
+      }
+      setHoraInicio(horaStr);
+    } else {
+      if (horaStr <= horaInicio) {
+        Alert.alert("Horario inválido", "La hora de fin debe ser después de la de inicio.");
+        return false;
+      }
+      setHoraFin(horaStr);
+    }
+    return true;
+  }
+
+  function onPickerChange(event, selectedDate) {
+    if (!selectedDate) return;
+    if (Platform.OS === "android") {
+      const campo = picker.campo;
+      setPicker((p) => ({ ...p, visible: false }));
+      if (event.type === "dismissed") return;
+      aplicarHoraPicker(campo, dateAHoraString(selectedDate));
+    } else {
+      setTempHora(selectedDate);
+    }
+  }
+
+  function confirmarHoraIOS() {
+    aplicarHoraPicker(picker.campo, dateAHoraString(tempHora));
+    setPicker((p) => ({ ...p, visible: false }));
+  }
+
   async function handleSave() {
     const user = auth.currentUser;
-    if (!user) {
-      showSnackbar("No hay un usuario autenticado.");
-      return;
-    }
+    if (!user) { showSnackbar("No hay un usuario autenticado."); return; }
+    if (!actividad) { showSnackbar("Seleccioná una actividad."); return; }
+    if (!dia) { showSnackbar("Seleccioná el día de la clase."); return; }
+    const duracion = calcDuracion(horaInicio, horaFin);
+    if (duracion <= 0) { showSnackbar("La hora de fin debe ser después de la de inicio."); return; }
 
-    const cleanNombre = nombre.trim();
-    const cleanDiaHora = diaHora.trim();
-    const cleanDuracion = duracion.trim();
-
-    if (!cleanNombre || !cleanDiaHora || !cleanDuracion) {
-      showSnackbar("Nombre, día/hora y duración son obligatorios.");
-      return;
-    }
-
-    const duracionNum = parseInt(cleanDuracion, 10);
-    if (isNaN(duracionNum) || duracionNum <= 0) {
-      showSnackbar("La duración debe ser un número positivo (minutos).");
-      return;
+    const diaHorario = gymHorarios[dia];
+    if (diaHorario?.abierto) {
+      if (horaInicio < diaHorario.abre || horaFin > diaHorario.cierra) {
+        showSnackbar(`La clase debe estar dentro del horario del gimnasio: ${diaHorario.abre} - ${diaHorario.cierra}`);
+        return;
+      }
     }
 
     const cupoNum = cupo.trim() ? parseInt(cupo.trim(), 10) : null;
@@ -116,32 +230,77 @@ export default function AddClassScreen({ navigation }) {
       return;
     }
 
+    const payload = {
+      actividad,
+      dia,
+      horaInicio,
+      horaFin,
+      duracion,
+      diaHora: `${DIA_LABELS[dia]} ${horaInicio} - ${horaFin}`,
+      cupo: cupoNum,
+      profesor: profesor.trim(),
+      descripcion: descripcion.trim(),
+    };
+
     setSaving(true);
     try {
-      const clasesRef = collection(db, "gimnasios", user.uid, "clases");
-      await addDoc(clasesRef, {
-        nombre: cleanNombre,
-        diaHora: cleanDiaHora,
-        duracion: duracionNum,
-        cupo: cupoNum,
-        profesor: profesor.trim(),
-        descripcion: descripcion.trim(),
-        creadoEn: serverTimestamp(),
-      });
-
-      showSnackbar("Clase agregada.", "success");
+      const user2 = auth.currentUser;
+      if (isEditMode) {
+        await updateDoc(doc(db, "gimnasios", user2.uid, "clases", claseId), payload);
+      } else {
+        await addDoc(collection(db, "gimnasios", user2.uid, "clases"), {
+          ...payload,
+          creadoEn: serverTimestamp(),
+        });
+      }
+      showSnackbar(isEditMode ? "Clase actualizada." : "Clase agregada.", "success");
       setTimeout(() => navigation.goBack(), 800);
     } catch (error) {
       console.log("AddClass error:", error?.code || error?.message || error);
-      let message = "No se pudo agregar la clase.";
-      if (error?.code === "permission-denied") {
-        message = "No tenés permisos para guardar. Revisá las reglas de Firestore.";
-      }
-      showSnackbar(message);
+      showSnackbar(
+        error?.code === "permission-denied"
+          ? "No tenés permisos para guardar. Revisá las reglas de Firestore."
+          : "No se pudo guardar la clase."
+      );
     } finally {
       setSaving(false);
     }
   }
+
+  if (loadingGym) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={COLORS.green} />
+      </SafeAreaView>
+    );
+  }
+
+  if (gymActividades.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+        <ScrollView contentContainerStyle={styles.container}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
+            <Text style={styles.back}>Volver</Text>
+          </TouchableOpacity>
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="dumbbell" size={48} color={COLORS.border} />
+            <Text style={styles.emptyTitle}>Sin actividades cargadas</Text>
+            <Text style={styles.emptyText}>
+              Para agregar clases, primero seleccioná las actividades que ofrece tu gimnasio en{" "}
+              <Text style={{ color: COLORS.green, fontWeight: "700" }}>Detalles del Gimnasio</Text>.
+            </Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.emptyButtonText}>Ir a Detalles del Gimnasio</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  const duracionPreview = calcDuracion(horaInicio, horaFin);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -153,49 +312,98 @@ export default function AddClassScreen({ navigation }) {
           <Text style={styles.back}>Volver</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Agregar clase</Text>
-        <Text style={styles.subtitle}>Cargá los datos de la nueva clase.</Text>
+        <Text style={styles.title}>{isEditMode ? "Editar clase" : "Agregar clase"}</Text>
+        <Text style={styles.subtitle}>
+          {isEditMode ? "Modificá los detalles de la clase." : "Configurá los detalles de la nueva clase."}
+        </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Nombre *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Yoga"
-            placeholderTextColor={COLORS.textMuted}
-            value={nombre}
-            onChangeText={setNombre}
-          />
+          {/* Actividad */}
+          <Text style={styles.sectionTitle}>Actividad *</Text>
+          <Text style={styles.sectionHint}>Seleccioná la actividad que corresponde a esta clase.</Text>
+          <View style={styles.chipsWrap}>
+            {gymActividades.map((act) => (
+              <TouchableOpacity
+                key={act}
+                style={[styles.chip, actividad === act && styles.chipActive]}
+                onPress={() => setActividad(act)}
+              >
+                <Text style={[styles.chipText, actividad === act && styles.chipTextActive]}>{act}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-          <Text style={styles.label}>Día y hora *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Lunes 10:00"
-            placeholderTextColor={COLORS.textMuted}
-            value={diaHora}
-            onChangeText={setDiaHora}
-          />
+          {/* Día */}
+          <Text style={styles.sectionTitle}>Día *</Text>
+          <View style={styles.diasRow}>
+            {DIAS.map(({ key, short }) => {
+              const isClosed = closedDias.includes(key);
+              const isSelected = dia === key;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.diaChip,
+                    isSelected && styles.diaChipActive,
+                    isClosed && styles.diaChipDisabled,
+                  ]}
+                  onPress={() => { if (!isClosed) setDia(key); }}
+                  disabled={isClosed}
+                >
+                  <Text style={[
+                    styles.diaChipText,
+                    isSelected && styles.diaChipTextActive,
+                    isClosed && styles.diaChipTextDisabled,
+                  ]}>
+                    {short}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {closedDias.length > 0 && (
+            <Text style={styles.closedHint}>Los días atenuados están marcados como cerrados en tu gimnasio.</Text>
+          )}
 
-          <Text style={styles.label}>Duración (minutos) *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: 60"
-            placeholderTextColor={COLORS.textMuted}
-            value={duracion}
-            onChangeText={(t) => setDuracion(t.replace(/\D/g, ""))}
-            keyboardType="numeric"
-          />
+          {/* Horario */}
+          <Text style={styles.sectionTitle}>Horario *</Text>
+          <View style={styles.horariosRow}>
+            <View style={styles.horaBlock}>
+              <Text style={styles.horaLabel}>Inicio</Text>
+              <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker("inicio")}>
+                <Text style={styles.horaText}>{horaInicio}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.horaSepBlock}>
+              <Text style={styles.horaSep}>—</Text>
+            </View>
+            <View style={styles.horaBlock}>
+              <Text style={styles.horaLabel}>Fin</Text>
+              <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker("fin")}>
+                <Text style={styles.horaText}>{horaFin}</Text>
+              </TouchableOpacity>
+            </View>
+            {duracionPreview > 0 && (
+              <View style={styles.duracionBadge}>
+                <MaterialCommunityIcons name="timer-outline" size={12} color={COLORS.green} />
+                <Text style={styles.duracionText}>{duracionPreview} min</Text>
+              </View>
+            )}
+          </View>
 
-          <Text style={styles.label}>Cupo</Text>
+          {/* Cupo */}
+          <Text style={styles.sectionTitle}>Cupo</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ej: 15"
+            placeholder="Ej: 15 (opcional)"
             placeholderTextColor={COLORS.textMuted}
             value={cupo}
             onChangeText={(t) => setCupo(t.replace(/\D/g, ""))}
             keyboardType="numeric"
           />
 
-          <Text style={styles.label}>Profesor</Text>
+          {/* Profesor */}
+          <Text style={styles.sectionTitle}>Profesor</Text>
           <TextInput
             style={styles.input}
             placeholder="Nombre del profesor"
@@ -204,14 +412,16 @@ export default function AddClassScreen({ navigation }) {
             onChangeText={setProfesor}
           />
 
-          <Text style={styles.label}>Descripción</Text>
+          {/* Descripción */}
+          <Text style={styles.sectionTitle}>Descripción</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
-            placeholder="Detalles de la clase"
+            placeholder="Detalles de la clase (opcional)"
             placeholderTextColor={COLORS.textMuted}
             value={descripcion}
             onChangeText={setDescripcion}
             multiline
+            textAlignVertical="top"
           />
 
           <TouchableOpacity
@@ -222,11 +432,50 @@ export default function AddClassScreen({ navigation }) {
             {saving ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.buttonText}>Agregar clase</Text>
+              <Text style={styles.buttonText}>
+                {isEditMode ? "Guardar cambios" : "Agregar clase"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Picker de hora */}
+      {Platform.OS === "ios" ? (
+        <Modal visible={picker.visible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setPicker((p) => ({ ...p, visible: false }))}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={confirmarHoraIOS}>
+                  <Text style={styles.modalConfirm}>Aceptar</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                mode="time"
+                display="spinner"
+                value={tempHora}
+                onChange={onPickerChange}
+                is24Hour={true}
+                style={styles.iosPicker}
+                textColor={COLORS.text}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        picker.visible && (
+          <DateTimePicker
+            mode="time"
+            display="default"
+            value={tempHora}
+            onChange={onPickerChange}
+            is24Hour={true}
+          />
+        )
+      )}
 
       <Snackbar message={snackbar.message} type={snackbar.type} visible={snackbar.visible} />
     </SafeAreaView>
@@ -241,37 +490,82 @@ const styles = StyleSheet.create({
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
   subtitle: { color: COLORS.textMuted, marginTop: 6, marginBottom: 22 },
   card: { backgroundColor: COLORS.card, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: COLORS.border },
-  label: { color: COLORS.text, fontSize: 14, marginBottom: 8, marginTop: 12 },
-  input: {
-    backgroundColor: COLORS.input,
-    color: COLORS.text,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+
+  sectionTitle: { color: COLORS.green, fontSize: 15, fontWeight: "700", marginTop: 18, marginBottom: 6 },
+  sectionHint: { color: COLORS.textMuted, fontSize: 12, marginBottom: 10 },
+  closedHint: { color: COLORS.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" },
+
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.input,
+  },
+  chipActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
+  chipText: { color: COLORS.textMuted, fontSize: 13, fontWeight: "500" },
+  chipTextActive: { color: COLORS.bg, fontWeight: "700" },
+
+  diasRow: { flexDirection: "row", gap: 5 },
+  diaChip: {
+    flex: 1,
+    paddingVertical: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
+    backgroundColor: COLORS.input,
   },
-  textarea: { minHeight: 90, textAlignVertical: "top" },
-  button: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 22 },
+  diaChipActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
+  diaChipDisabled: { opacity: 0.25 },
+  diaChipText: { color: COLORS.textMuted, fontSize: 12, fontWeight: "600" },
+  diaChipTextActive: { color: COLORS.bg, fontWeight: "700" },
+  diaChipTextDisabled: { color: COLORS.textMuted },
+
+  horariosRow: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  horaBlock: { alignItems: "center", gap: 6 },
+  horaLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  horaSepBlock: { paddingBottom: 14 },
+  horaSep: { color: COLORS.textMuted, fontSize: 18 },
+  horaPicker: {
+    backgroundColor: COLORS.input, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 18,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  horaText: { color: COLORS.green, fontSize: 18, fontWeight: "700" },
+  duracionBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#0a1f0e", borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderWidth: 1, borderColor: COLORS.greenDark,
+    marginBottom: 2,
+  },
+  duracionText: { color: COLORS.green, fontSize: 12, fontWeight: "600" },
+
+  input: {
+    backgroundColor: COLORS.input, color: COLORS.text,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  textarea: { minHeight: 80, textAlignVertical: "top" },
+
+  button: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 24 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
-  snackbar: {
-    position: "absolute",
-    bottom: 30,
-    left: 20,
-    right: 20,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-  },
+
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60, gap: 16, paddingHorizontal: 20 },
+  emptyTitle: { color: COLORS.text, fontSize: 20, fontWeight: "700", textAlign: "center" },
+  emptyText: { color: COLORS.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
+  emptyButton: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, marginTop: 8 },
+  emptyButtonText: { color: COLORS.text, fontSize: 15, fontWeight: "700" },
+
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalCard: { backgroundColor: "#1a2535", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalCancel: { color: COLORS.textMuted, fontSize: 16 },
+  modalConfirm: { color: COLORS.green, fontSize: 16, fontWeight: "700" },
+  iosPicker: { backgroundColor: "#1a2535" },
+
+  snackbar: { position: "absolute", bottom: 30, left: 20, right: 20, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
   snackbarError: { backgroundColor: "#1f0a0a", borderWidth: 1, borderColor: COLORS.error },
   snackbarSuccess: { backgroundColor: "#0a1f0e", borderWidth: 1, borderColor: COLORS.green },
   snackbarIcon: { color: COLORS.text, fontSize: 14, fontWeight: "800" },

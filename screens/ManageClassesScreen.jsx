@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,14 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  collection,
-  getDocs,
-  doc,
-  deleteDoc,
-  query,
-  orderBy,
-} from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -39,23 +32,13 @@ export default function ManageClassesScreen({ navigation }) {
 
   const fetchClases = useCallback(async () => {
     const user = auth.currentUser;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) { setLoading(false); return; }
     try {
-      const clasesRef = collection(db, "gimnasios", user.uid, "clases");
-      const q = query(clasesRef, orderBy("creadoEn", "desc"));
+      const q = query(collection(db, "gimnasios", user.uid, "clases"), orderBy("creadoEn", "desc"));
       const snap = await getDocs(q);
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setClases(items);
+      setClases(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (error) {
-      // Si todavía no existe la subcolección, getDocs devuelve vacío sin error.
-      // Si hay un error de permisos, lo logueamos en silencio.
-      console.log(
-        "ManageClasses: no se pudo leer clases",
-        error?.code || error?.message || error
-      );
+      console.log("ManageClasses:", error?.code || error?.message || error);
       setClases([]);
     } finally {
       setLoading(false);
@@ -70,16 +53,13 @@ export default function ManageClassesScreen({ navigation }) {
   );
 
   function confirmDelete(clase) {
+    const displayName = clase.actividad || clase.nombre || "esta clase";
     Alert.alert(
-      "Cancelar clase",
-      `¿Seguro que querés cancelar "${clase.nombre}"?`,
+      "Eliminar clase",
+      `¿Seguro que querés eliminar la clase de "${displayName}"?`,
       [
-        { text: "No", style: "cancel" },
-        {
-          text: "Sí, cancelar",
-          style: "destructive",
-          onPress: () => handleDelete(clase.id),
-        },
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: () => handleDelete(clase.id) },
       ]
     );
   }
@@ -92,7 +72,7 @@ export default function ManageClassesScreen({ navigation }) {
       setClases((prev) => prev.filter((c) => c.id !== claseId));
     } catch (error) {
       console.log("Delete class error:", error?.code || error?.message || error);
-      Alert.alert("Error", "No se pudo cancelar la clase.");
+      Alert.alert("Error", "No se pudo eliminar la clase.");
     }
   }
 
@@ -123,38 +103,57 @@ export default function ManageClassesScreen({ navigation }) {
           </View>
         ) : clases.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MaterialCommunityIcons
-              name="calendar-blank-outline"
-              size={32}
-              color={COLORS.textMuted}
-            />
+            <MaterialCommunityIcons name="calendar-blank-outline" size={32} color={COLORS.textMuted} />
             <Text style={styles.emptyText}>Todavía no agregaste clases.</Text>
           </View>
         ) : (
           clases.map((clase) => (
             <View key={clase.id} style={styles.classCard}>
-              <View style={styles.classInfo}>
-                <Text style={styles.className}>{clase.nombre}</Text>
-                <Text style={styles.classMeta}>
-                  {clase.diaHora}
-                  {clase.duracion ? ` · ${clase.duracion} min` : ""}
+              {/* Badge de actividad */}
+              <View style={styles.activityBadge}>
+                <MaterialCommunityIcons name="dumbbell" size={13} color={COLORS.green} />
+                <Text style={styles.activityBadgeText} numberOfLines={1}>
+                  {clase.actividad || clase.nombre || "Clase"}
                 </Text>
-                {!!clase.profesor && (
-                  <Text style={styles.classMetaSmall}>Prof. {clase.profesor}</Text>
-                )}
-                {!!clase.cupo && (
-                  <Text style={styles.classMetaSmall}>Cupo: {clase.cupo}</Text>
-                )}
-                {!!clase.descripcion && (
-                  <Text style={styles.classDesc}>{clase.descripcion}</Text>
-                )}
               </View>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => confirmDelete(clase)}
-              >
-                <MaterialCommunityIcons name="trash-can-outline" size={20} color={COLORS.red} />
-              </TouchableOpacity>
+
+              {/* Info principal */}
+              <Text style={styles.classMeta}>
+                {clase.diaHora || "Horario no especificado"}
+              </Text>
+              {clase.duracion > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                  <MaterialCommunityIcons name="timer-outline" size={12} color={COLORS.textMuted} />
+                  <Text style={styles.classMetaSmall}>{clase.duracion} min</Text>
+                </View>
+              )}
+              {!!clase.profesor && (
+                <Text style={styles.classMetaSmall}>Prof. {clase.profesor}</Text>
+              )}
+              {!!clase.cupo && (
+                <Text style={styles.classMetaSmall}>Cupo: {clase.cupo}</Text>
+              )}
+              {!!clase.descripcion && (
+                <Text style={styles.classDesc} numberOfLines={2}>{clase.descripcion}</Text>
+              )}
+
+              {/* Acciones */}
+              <View style={styles.actionsRow}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => navigation.navigate("AddClass", { claseId: clase.id })}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={16} color={COLORS.green} />
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => confirmDelete(clase)}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={16} color={COLORS.red} />
+                  <Text style={styles.deleteButtonText}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))
         )}
@@ -166,63 +165,56 @@ export default function ManageClassesScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   container: { padding: 22, paddingBottom: 40 },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 24,
-    alignSelf: "flex-start",
-  },
+  backButton: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 24, alignSelf: "flex-start" },
   back: { color: COLORS.green, fontSize: 15 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
   subtitle: { color: COLORS.textMuted, marginTop: 6, marginBottom: 22 },
 
   addButton: {
-    backgroundColor: COLORS.greenDark,
-    borderRadius: 14,
-    paddingVertical: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 18,
+    backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 14,
+    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    gap: 6, marginBottom: 18,
   },
   addButtonText: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
-
   center: { padding: 30, alignItems: "center" },
-
   emptyCard: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 18,
-    padding: 24,
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 18, padding: 24, alignItems: "center", gap: 8,
   },
   emptyText: { color: COLORS.textMuted, fontSize: 14 },
 
   classCard: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 18, padding: 16, marginBottom: 12,
   },
-  classInfo: { flex: 1 },
-  className: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
-  classMeta: { color: COLORS.green, fontSize: 13, marginTop: 4 },
-  classMetaSmall: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
+  activityBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#0a1f0e", borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderWidth: 1, borderColor: COLORS.greenDark,
+    marginBottom: 10,
+  },
+  activityBadgeText: { color: COLORS.green, fontSize: 13, fontWeight: "700" },
+
+  classMeta: { color: COLORS.text, fontSize: 15, fontWeight: "600", marginBottom: 4 },
+  classMetaSmall: { color: COLORS.textMuted, fontSize: 13, marginTop: 2 },
   classDesc: { color: COLORS.textMuted, fontSize: 12, marginTop: 6, lineHeight: 18 },
 
-  cancelButton: {
-    padding: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.red,
+  actionsRow: {
+    flexDirection: "row", gap: 10, marginTop: 14,
+    borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12,
   },
+  editButton: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, borderRadius: 10, borderWidth: 1, borderColor: COLORS.green,
+    paddingVertical: 9,
+  },
+  editButtonText: { color: COLORS.green, fontSize: 13, fontWeight: "600" },
+  deleteButton: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, borderRadius: 10, borderWidth: 1, borderColor: COLORS.red,
+    paddingVertical: 9,
+  },
+  deleteButtonText: { color: COLORS.red, fontSize: 13, fontWeight: "600" },
 });
