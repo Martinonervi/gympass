@@ -33,6 +33,7 @@ export default function GymDetailScreen({ route, navigation }) {
   const [gymData, setGymData] = useState(null);
   const [classes, setClasses] = useState([]);
   const [userRole, setUserRole] = useState(null);
+  const [userPlan, setUserPlan] = useState(null);
   const [reservando, setReservando] = useState(false);
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export default function GymDetailScreen({ route, navigation }) {
 
         if (userSnap?.exists()) {
           setUserRole(userSnap.data().rol);
+          setUserPlan(userSnap.data().plan || null);
         }
       } catch (error) {
         console.error("Error fetching gym details:", error);
@@ -84,6 +86,19 @@ export default function GymDetailScreen({ route, navigation }) {
   const reservarPase = async () => {
     const user = auth.currentUser;
     if (!user) return;
+
+    if (!userPlan) {
+      Alert.alert(
+        "Sin plan activo",
+        "No tenés un plan activo. Adquirí un plan para poder reservar pases en los gimnasios.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
+        ]
+      );
+      return;
+    }
+
     setReservando(true);
     try {
       if (await yaReservo("pase")) {
@@ -98,7 +113,7 @@ export default function GymDetailScreen({ route, navigation }) {
         fecha: serverTimestamp(),
         estado: "pendiente",
       });
-      Alert.alert("¡Reserva realizada!", `Tu pase para ${gymData?.nombreGimnasio || "el gimnasio"} fue reservado.`);
+      Alert.alert("¡Reserva realizada!", `Tu pase para ${gymData?.nombreGimnasio || "el gimnasio"} fue realizado con éxito.`);
     } catch (e) {
       console.error("Error reservando pase:", e);
       Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
@@ -161,6 +176,20 @@ export default function GymDetailScreen({ route, navigation }) {
   const { nombre = "Gimnasio", descripcion, horarios, comodidades, fotos = [] } = gymData;
   const esCliente = userRole === "usuario";
 
+  const hasCoords =
+    !isNaN(Number(gymData.latitude)) &&
+    !isNaN(Number(gymData.longitude)) &&
+    gymData.latitude !== undefined &&
+    gymData.longitude !== undefined;
+
+  const handleVerEnMapa = () => {
+    navigation.navigate("Map", {
+      latitude: gymData.latitude,
+      longitude: gymData.longitude,
+      gymName: gymData.nombreGimnasio || nombre,
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
@@ -183,18 +212,26 @@ export default function GymDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {esCliente && (
-          <TouchableOpacity
-            style={[styles.reserveButton, reservando && styles.reserveButtonDisabled]}
-            onPress={reservarPase}
-            disabled={reservando}
-          >
-            <MaterialCommunityIcons name="ticket-confirmation-outline" size={20} color="#fff" />
-            <Text style={styles.reserveButtonText}>
-              {reservando ? "Reservando..." : "Reservar pase"}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.actionsRow}>
+          {esCliente && (
+            <TouchableOpacity
+              style={[styles.reserveButton, reservando && styles.reserveButtonDisabled, { flex: 1 }]}
+              onPress={reservarPase}
+              disabled={reservando}
+            >
+              <MaterialCommunityIcons name="ticket-confirmation-outline" size={20} color="#fff" />
+              <Text style={styles.reserveButtonText}>
+                {reservando ? "Reservando..." : "Reservar pase"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {hasCoords && (
+            <TouchableOpacity style={styles.mapButton} onPress={handleVerEnMapa}>
+              <MaterialCommunityIcons name="map-marker-outline" size={20} color={COLORS.green} />
+              <Text style={styles.mapButtonText}>Ver en mapa</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Descripción</Text>
@@ -301,6 +338,12 @@ const styles = StyleSheet.create({
   photosCarousel: { gap: 12, paddingRight: 22 },
   photo: { width: 300, height: 200, borderRadius: 16, backgroundColor: COLORS.card },
 
+  actionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 24,
+    alignItems: "stretch",
+  },
   reserveButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -309,10 +352,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
     borderRadius: 14,
     paddingVertical: 14,
-    marginBottom: 24,
   },
   reserveButtonDisabled: { opacity: 0.6 },
-  reserveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  reserveButtonText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  mapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  mapButtonText: { color: COLORS.green, fontSize: 14, fontWeight: "600" },
 
   section: { marginBottom: 24 },
   sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },

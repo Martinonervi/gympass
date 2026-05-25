@@ -21,6 +21,7 @@ import ManageClassesScreen from "./screens/ManageClassesScreen";
 import AddClassScreen from "./screens/AddClassScreen";
 import GymDetailScreen from "./screens/GymDetailScreen";
 import GymReservationsScreen from "./screens/GymReservationsScreen";
+import MapScreen from "./screens/MapScreen";
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -105,6 +106,7 @@ function App() {
             <Stack.Screen name="EditUserInfo" component={EditUserInfoScreen} />
             <Stack.Screen name="ChangeLoginData" component={ChangeLoginDataScreen} />
             <Stack.Screen name="GymReservations" component={GymReservationsScreen} />
+            <Stack.Screen name="Map" component={MapScreen} />
           </Stack.Navigator>
         ) : (
           <Stack.Navigator screenOptions={{ headerShown: false }}>
