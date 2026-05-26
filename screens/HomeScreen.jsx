@@ -309,7 +309,7 @@ export default function HomeScreen() {
         <View style={styles.atajoGrid}>
           <TouchableOpacity
             style={styles.atajoCard}
-            onPress={() => navigation.navigate('MapTab')}
+            onPress={() => navigation.navigate('Map')}
           >
             <View style={[styles.atajoIcon, { backgroundColor: '#1a2a3a' }]}>
               <Ionicons name="location-outline" size={18} color={COLORS.green} />

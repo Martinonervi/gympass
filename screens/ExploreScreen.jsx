@@ -40,6 +40,16 @@ const ACTIVIDADES_PRESET = [
   "Natación", "Stretching", "Crossfit", "Boxeo", "Zumba",
 ];
 
+const PLAN_ORDER  = { classic: 0, platinum: 1, black: 2 };
+const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
+const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
+const PLAN_OPTIONS = [
+  { id: null,       label: "Cualquier plan" },
+  { id: "classic",  label: "Classic"  },
+  { id: "platinum", label: "Platinum" },
+  { id: "black",    label: "Black"    },
+];
+
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -60,6 +70,7 @@ export default function ExploreScreen({ navigation }) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [distanceFilter, setDistanceFilter] = useState(null);
   const [activityFilter, setActivityFilter] = useState([]);
+  const [planFilter, setPlanFilter] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   useEffect(() => {
@@ -101,6 +112,10 @@ export default function ExploreScreen({ navigation }) {
       const name = g.nombreGimnasio || g.nombre || "";
       if (query && !name.toLowerCase().includes(query.toLowerCase())) return false;
       if (activityFilter.length > 0 && !activityFilter.some((a) => (g.actividades || []).includes(a))) return false;
+      if (planFilter !== null) {
+        const gymLevel = PLAN_ORDER[g.planGimnasio || "classic"] ?? 0;
+        if (gymLevel > (PLAN_ORDER[planFilter] ?? 0)) return false;
+      }
       if (distanceFilter !== null && userLocation) {
         const lat = Number(g.latitude);
         const lng = Number(g.longitude);
@@ -123,11 +138,13 @@ export default function ExploreScreen({ navigation }) {
       return a.distance - b.distance;
     });
 
-  const hasActiveFilters = distanceFilter !== null || activityFilter.length > 0;
+  const hasActiveFilters = distanceFilter !== null || activityFilter.length > 0 || planFilter !== null;
+  const activeFilterCount = (distanceFilter !== null ? 1 : 0) + activityFilter.length + (planFilter !== null ? 1 : 0);
 
   const clearAllFilters = () => {
     setDistanceFilter(null);
     setActivityFilter([]);
+    setPlanFilter(null);
   };
 
   const renderItem = ({ item }) => (
@@ -139,13 +156,28 @@ export default function ExploreScreen({ navigation }) {
         <Text style={styles.cardTitle} numberOfLines={1}>
           {item.nombreGimnasio || item.nombre || "Gimnasio sin nombre"}
         </Text>
-        {item.distance !== null && (
-          <Text style={styles.distanceBadge}>
-            {item.distance < 1
-              ? `${Math.round(item.distance * 1000)} m`
-              : `${item.distance.toFixed(1)} km`}
-          </Text>
-        )}
+        <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+          {(() => {
+            const plan = item.planGimnasio || "classic";
+            return (
+              <View style={[styles.planBadge, {
+                backgroundColor: PLAN_COLORS[plan] + "22",
+                borderColor: PLAN_COLORS[plan],
+              }]}>
+                <Text style={[styles.planBadgeText, { color: PLAN_COLORS[plan] }]}>
+                  {PLAN_LABELS[plan]}
+                </Text>
+              </View>
+            );
+          })()}
+          {item.distance !== null && (
+            <Text style={styles.distanceBadge}>
+              {item.distance < 1
+                ? `${Math.round(item.distance * 1000)} m`
+                : `${item.distance.toFixed(1)} km`}
+            </Text>
+          )}
+        </View>
       </View>
       <Text style={styles.cardAddress} numberOfLines={1}>
         {item.direccion || "Dirección no especificada"}
@@ -221,6 +253,17 @@ export default function ExploreScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           )}
+          {planFilter !== null && (
+            <View style={[styles.filterChip, { borderColor: PLAN_COLORS[planFilter] }]}>
+              <MaterialCommunityIcons name="star-circle-outline" size={12} color={PLAN_COLORS[planFilter]} />
+              <Text style={[styles.filterChipText, { color: PLAN_COLORS[planFilter] }]}>
+                {PLAN_LABELS[planFilter]}
+              </Text>
+              <TouchableOpacity onPress={() => setPlanFilter(null)}>
+                <MaterialCommunityIcons name="close" size={12} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          )}
           {activityFilter.map((act) => (
             <View key={act} style={styles.filterChip}>
               <MaterialCommunityIcons name="dumbbell" size={12} color={COLORS.green} />
@@ -231,7 +274,7 @@ export default function ExploreScreen({ navigation }) {
             </View>
           ))}
           {locationLoading && <ActivityIndicator size="small" color={COLORS.green} />}
-          {(distanceFilter !== null && activityFilter.length > 0) && (
+          {activeFilterCount >= 2 && (
             <TouchableOpacity onPress={clearAllFilters}>
               <Text style={styles.clearAll}>Limpiar todo</Text>
             </TouchableOpacity>
@@ -263,6 +306,31 @@ export default function ExploreScreen({ navigation }) {
           <Pressable style={styles.modalBox} onPress={() => {}}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Filtros</Text>
+
+              <Text style={styles.modalSectionTitle}>Plan</Text>
+              {PLAN_OPTIONS.map((opt) => {
+                const color = opt.id ? PLAN_COLORS[opt.id] : COLORS.textMuted;
+                const isSelected = planFilter === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={String(opt.id)}
+                    style={[
+                      styles.modalOption,
+                      isSelected && { backgroundColor: color + "22", borderColor: color },
+                    ]}
+                    onPress={() => setPlanFilter(opt.id)}
+                  >
+                    <MaterialCommunityIcons
+                      name={opt.id ? "star-circle-outline" : "filter-off-outline"}
+                      size={18}
+                      color={isSelected ? color : COLORS.textMuted}
+                    />
+                    <Text style={[styles.modalOptionText, isSelected && { color: color, fontWeight: "700" }]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
 
               <Text style={styles.modalSectionTitle}>Distancia</Text>
               {DISTANCE_OPTIONS.map((opt) => (
@@ -355,6 +423,11 @@ const styles = StyleSheet.create({
   },
   cardAddress: { color: COLORS.textMuted, fontSize: 14, marginBottom: 4 },
   cardActividades: { color: "#4a6a5a", fontSize: 12, marginTop: 2 },
+  planBadge: {
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+    borderWidth: 1,
+  },
+  planBadgeText: { fontSize: 10, fontWeight: "700" },
   emptyText: { color: COLORS.textMuted, fontSize: 16, textAlign: "center", marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "center", alignItems: "center" },
   modalBox: { backgroundColor: COLORS.card, borderRadius: 20, padding: 24, width: "88%", borderWidth: 1, borderColor: COLORS.border, maxHeight: "80%" },

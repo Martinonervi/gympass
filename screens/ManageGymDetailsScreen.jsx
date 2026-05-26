@@ -76,6 +76,12 @@ const COMODIDADES_PRESET = [
   "Duchas", "WiFi", "Lockers", "Estacionamiento", "Vestuarios", "Cafetería",
 ];
 
+const PLANES_GIMNASIO = [
+  { id: "classic",  nombre: "Classic",  color: "#64748b" },
+  { id: "platinum", nombre: "Platinum", color: "#8b5cf6" },
+  { id: "black",    nombre: "Black",    color: "#f59e0b" },
+];
+
 function horaStringADate(horaStr) {
   const [h, m] = horaStr.split(":").map(Number);
   const d = new Date();
@@ -98,6 +104,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
   const [actividades, setActividades] = useState([]);
   const [comodidades, setComodidades] = useState([]);
   const [otraActividad, setOtraActividad] = useState("");
+  const [planGimnasio, setPlanGimnasio] = useState("classic");
   const [fotos, setFotos] = useState([]);
 
   const [picker, setPicker] = useState({ visible: false, dia: null, campo: null });
@@ -114,6 +121,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
           setDescripcion(data.descripcion || "");
           setActividades(data.actividades || []);
           setComodidades(Array.isArray(data.comodidades) ? data.comodidades : []);
+          setPlanGimnasio(data.planGimnasio || "classic");
           setFotos(data.fotos || []);
           if (data.horarios && typeof data.horarios === "object" && Object.keys(data.horarios).length > 0) {
             setHorarios({ ...HORARIOS_DEFAULT, ...data.horarios });
@@ -228,6 +236,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
         horarios,
         actividades,
         comodidades,
+        planGimnasio,
         fotos: fotosSubidas,
       }, { merge: true });
 
@@ -378,6 +387,34 @@ export default function ManageGymDetailsScreen({ navigation }) {
             })}
           </View>
 
+          {/* Plan de Gympass */}
+          <Text style={styles.sectionTitle}>Plan de Gympass</Text>
+          <Text style={styles.sectionHint}>Indicá a qué plan pertenece tu gimnasio. Determina qué usuarios pueden acceder.</Text>
+          <View style={styles.planRow}>
+            {PLANES_GIMNASIO.map((p) => {
+              const sel = planGimnasio === p.id;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[
+                    styles.planChip,
+                    sel && { borderColor: p.color, backgroundColor: p.color + "22" },
+                  ]}
+                  onPress={() => setPlanGimnasio(p.id)}
+                >
+                  <MaterialCommunityIcons
+                    name="star-circle-outline"
+                    size={14}
+                    color={sel ? p.color : COLORS.textMuted}
+                  />
+                  <Text style={[styles.planChipText, sel && { color: p.color, fontWeight: "700" }]}>
+                    {p.nombre}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           {/* Fotos */}
           <Text style={styles.sectionTitle}>Fotos del gimnasio</Text>
           <TouchableOpacity style={styles.secondaryButton} onPress={handlePickImage}>
@@ -511,6 +548,14 @@ const styles = StyleSheet.create({
   chipTextActive: { color: COLORS.bg, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, alignItems: "center" },
   addChipButton: { backgroundColor: COLORS.greenDark, borderRadius: 12, padding: 13 },
+
+  planRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  planChip: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, paddingVertical: 11, borderRadius: 12,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.input,
+  },
+  planChipText: { color: COLORS.textMuted, fontSize: 13 },
 
   button: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 24 },
   buttonDisabled: { opacity: 0.6 },

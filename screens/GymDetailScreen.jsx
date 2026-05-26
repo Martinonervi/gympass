@@ -26,6 +26,16 @@ const COLORS = {
   error: "#ef4444",
 };
 
+const PLAN_ORDER  = { classic: 0, platinum: 1, black: 2 };
+const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
+const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
+
+function canAccessGym(userPlan, gymPlan) {
+  if (!userPlan) return false;
+  if (!gymPlan) return true; // gym has no plan requirement
+  return (PLAN_ORDER[userPlan] ?? -1) >= (PLAN_ORDER[gymPlan] ?? 0);
+}
+
 export default function GymDetailScreen({ route, navigation }) {
   const { gymId } = route.params;
 
@@ -64,23 +74,13 @@ export default function GymDetailScreen({ route, navigation }) {
     if (gymId) fetchData();
   }, [gymId]);
 
-  const yaReservo = async (tipo) => {
-    const user = auth.currentUser;
-    if (!user) return false;
-    const snap = await getDocs(query(
-      collection(db, "reservas"),
-      where("userId", "==", user.uid),
-      where("gymId", "==", gymId),
-      where("tipo", "==", tipo),
-      limit(1)
-    ));
-    return !snap.empty;
-  };
-
   const reservarPase = async () => {
     const user = auth.currentUser;
     if (!user) return;
 
+    const gymPlan = gymData?.planGimnasio || "classic";
+
+    // No plan at all
     if (!userPlan) {
       Alert.alert(
         "Sin plan activo",
@@ -93,12 +93,43 @@ export default function GymDetailScreen({ route, navigation }) {
       return;
     }
 
+    // Plan doesn't cover this gym
+    if (!canAccessGym(userPlan, gymPlan)) {
+      Alert.alert(
+        "Plan insuficiente",
+        `Este gimnasio requiere el plan ${PLAN_LABELS[gymPlan] || gymPlan} o superior. Tu plan actual es ${PLAN_LABELS[userPlan] || userPlan}.`,
+        [
+          { text: "Cerrar", style: "cancel" },
+          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
+        ]
+      );
+      return;
+    }
+
     setReservando(true);
     try {
-      if (await yaReservo("pase")) {
-        Alert.alert("Ya reservaste", `Ya tenés un pase reservado para ${gymData?.nombreGimnasio || "este gimnasio"}.`);
-        return;
+      if (userPlan !== "black") {
+        // Classic / Platinum: max 1 pass per day across ALL gyms.
+        // Date filter is done client-side to avoid needing a composite Firestore index.
+        const snap = await getDocs(query(
+          collection(db, "reservas"),
+          where("userId", "==", user.uid),
+          where("tipo", "==", "pase"),
+          limit(100)
+        ));
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+        const hasPassToday = snap.docs.some((d) => {
+          const fecha = d.data().fecha?.toDate?.();
+          return fecha && fecha >= today && fecha < tomorrow;
+        });
+        if (hasPassToday) {
+          Alert.alert("Límite diario alcanzado", "Solo podés usar 1 pase por día. Ya usaste tu pase de hoy.");
+          return;
+        }
       }
+      // Black: no daily limit — allow multiple passes across all gyms
+
       await addDoc(collection(db, "reservas"), {
         userId: user.uid,
         tipo: "pase",
@@ -138,8 +169,11 @@ export default function GymDetailScreen({ route, navigation }) {
     );
   }
 
-  const { nombre = "Gimnasio", descripcion, horarios, fotos = [] } = gymData;
+  const { descripcion, horarios, fotos = [] } = gymData;
+  const nombre = gymData.nombreGimnasio || gymData.nombre || "Gimnasio";
   const esCliente = userRole === "usuario";
+  const gymPlan = gymData?.planGimnasio || "classic";
+  const canAccess = canAccessGym(userPlan, gymPlan);
 
   const hasCoords =
     !isNaN(Number(gymData.latitude)) &&
@@ -165,7 +199,20 @@ export default function GymDetailScreen({ route, navigation }) {
           <Text style={styles.back}>Volver</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>{nombre}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{nombre}</Text>
+          {gymPlan && (
+            <View style={[styles.planBadge, {
+              backgroundColor: PLAN_COLORS[gymPlan] + "22",
+              borderColor: PLAN_COLORS[gymPlan],
+            }]}>
+              <MaterialCommunityIcons name="star-circle-outline" size={13} color={PLAN_COLORS[gymPlan]} />
+              <Text style={[styles.planBadgeText, { color: PLAN_COLORS[gymPlan] }]}>
+                {PLAN_LABELS[gymPlan]}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {fotos && fotos.length > 0 && (
           <View style={styles.photosSection}>
@@ -180,13 +227,26 @@ export default function GymDetailScreen({ route, navigation }) {
         <View style={styles.actionsRow}>
           {esCliente && (
             <TouchableOpacity
-              style={[styles.reserveButton, reservando && styles.reserveButtonDisabled, { flex: 1 }]}
+              style={[
+                styles.reserveButton,
+                !canAccess && styles.reserveButtonLocked,
+                reservando && styles.reserveButtonDisabled,
+                { flex: 1 },
+              ]}
               onPress={reservarPase}
               disabled={reservando}
             >
-              <MaterialCommunityIcons name="ticket-confirmation-outline" size={20} color="#fff" />
+              <MaterialCommunityIcons
+                name={canAccess ? "ticket-confirmation-outline" : "lock-outline"}
+                size={20}
+                color="#fff"
+              />
               <Text style={styles.reserveButtonText}>
-                {reservando ? "Reservando..." : "Reservar pase"}
+                {reservando
+                  ? "Reservando..."
+                  : canAccess
+                    ? "Reservar pase"
+                    : `Requiere plan ${PLAN_LABELS[gymPlan] || ""}`}
               </Text>
             </TouchableOpacity>
           )}
@@ -276,7 +336,14 @@ const styles = StyleSheet.create({
   },
   backButton: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 24, alignSelf: "flex-start" },
   back: { color: COLORS.green, fontSize: 15 },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: "800", marginBottom: 20 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" },
+  title: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
+  planBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1,
+  },
+  planBadgeText: { fontSize: 12, fontWeight: "700" },
+  reserveButtonLocked: { backgroundColor: "#374151" },
   errorText: { color: COLORS.error, fontSize: 16, textAlign: "center", marginTop: 40 },
 
   photosSection: { marginBottom: 24 },
