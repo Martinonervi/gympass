@@ -9,10 +9,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signOut, reload } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import { useNavigation } from "@react-navigation/native";
 
@@ -26,6 +29,8 @@ const COLORS = {
   textMuted: "#94a3b8",
   input: "#111827",
   red: "#ef4444",
+  orange: "#f97316",
+  orangeDark: "#c2410c",
 };
 
 // ─── Snackbar ─────────────────────────────────────────────────────────────────
@@ -121,6 +126,10 @@ export default function ProfileScreen({ setIsSignedIn }) {
   const [rol, setRol] = useState("");
   const [email, setEmail] = useState("");
 
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -187,6 +196,33 @@ export default function ProfileScreen({ setIsSignedIn }) {
     return "Editar mis datos";
   }
 
+  const handleSendReport = async () => {
+    if (!reportText.trim()) {
+      showSnackbar("Escribí un mensaje antes de enviar.");
+      return;
+    }
+    setSendingReport(true);
+    try {
+      const user = auth.currentUser;
+      const coleccion = rol === "gimnasio" ? "reportes_gimnasios" : "reportes_usuarios";
+      await addDoc(collection(db, coleccion), {
+        uid: user?.uid || null,
+        email: email || null,
+        mensaje: reportText.trim(),
+        creadoEn: serverTimestamp(),
+        leido: false,
+      });
+      setReportModalVisible(false);
+      setReportText("");
+      showSnackbar("Reporte enviado con éxito. ¡Gracias!", "success");
+    } catch (error) {
+      console.error(error);
+      showSnackbar("No se pudo enviar el reporte. Intentá de nuevo.");
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -244,7 +280,79 @@ export default function ProfileScreen({ setIsSignedIn }) {
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
+
+        {rol === "usuario" && (
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => setReportModalVisible(true)}
+          >
+            <Text style={styles.reportButtonIcon}>⚑</Text>
+            <Text style={styles.reportButtonText}>Reportar un problema</Text>
+          </TouchableOpacity>
+        )}
+
+        {rol === "gimnasio" && (
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => setReportModalVisible(true)}
+          >
+            <Text style={styles.reportButtonIcon}>⚑</Text>
+            <Text style={styles.reportButtonText}>Reportar un problema</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
+
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reportar un problema</Text>
+            <Text style={styles.modalSubtitle}>
+              Describí el problema. Nuestro equipo de soporte lo revisará.
+            </Text>
+
+            <TextInput
+              style={styles.reportInput}
+              value={reportText}
+              onChangeText={setReportText}
+              placeholder="Escribí tu mensaje acá..."
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              maxLength={1000}
+            />
+            <Text style={styles.charCount}>{reportText.length}/1000</Text>
+
+            <TouchableOpacity
+              style={[styles.sendButton, sendingReport && styles.sendButtonDisabled]}
+              onPress={handleSendReport}
+              disabled={sendingReport}
+            >
+              {sendingReport ? (
+                <ActivityIndicator color={COLORS.text} size="small" />
+              ) : (
+                <Text style={styles.sendButtonText}>Enviar reporte</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => { setReportModalVisible(false); setReportText(""); }}
+              disabled={sendingReport}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Snackbar — fuera del ScrollView para que quede fijo al fondo */}
       <Snackbar
@@ -342,6 +450,102 @@ const styles = StyleSheet.create({
     color: COLORS.red,
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  // ── Report button ─────────────────────────────────────────────────────────
+  reportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: COLORS.orange,
+    borderRadius: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+  },
+  reportButtonIcon: {
+    color: COLORS.orange,
+    fontSize: 16,
+  },
+  reportButtonText: {
+    color: COLORS.orange,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modalTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 19,
+  },
+  reportInput: {
+    backgroundColor: COLORS.input,
+    color: COLORS.text,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minHeight: 120,
+    fontSize: 14,
+  },
+  charCount: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    textAlign: "right",
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  sendButton: {
+    backgroundColor: COLORS.orange,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
+  },
+  sendButtonText: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  cancelButtonText: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   // ── Snackbar ──────────────────────────────────────────────────────────────
