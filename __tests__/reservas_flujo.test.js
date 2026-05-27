@@ -1,6 +1,6 @@
 import { isDuplicatePase, isDuplicateClase, buildReservaPase, buildReservaClase } from "../utils/reservas";
 import { isCliente } from "../utils/auth";
-import { canAccessClases } from "../utils/planes";
+import { canAccessClases, canAccessGym } from "../utils/planes";
 import { hasDisponibilidad } from "../utils/clases";
 
 const USUARIO = { uid: "user-1", rol: "usuario", plan: "platinum" };
@@ -62,5 +62,30 @@ describe("Flujo de reserva de clase", () => {
   it("puede reservar otra clase del mismo gimnasio", () => {
     const existentes = [buildReservaClase({ userId: USUARIO.uid, gymId: GYM_ID, clase: CLASE })];
     expect(isDuplicateClase(existentes, USUARIO.uid, GYM_ID, "clase-2")).toBe(false);
+  });
+});
+
+describe("Flujo de acceso por plan", () => {
+  it("usuario sin plan no puede acceder a ningún gym", () => {
+    expect(canAccessGym(null, "classic")).toBe(false);
+    expect(canAccessGym(null, "platinum")).toBe(false);
+  });
+
+  it("usuario classic no puede acceder a un gym platinum aunque sea cliente", () => {
+    const usuario = { uid: "user-2", rol: "usuario", plan: "classic" };
+    expect(isCliente(usuario.rol)).toBe(true);
+    expect(canAccessGym(usuario.plan, "platinum")).toBe(false);
+  });
+
+  it("usuario platinum puede acceder a gym classic y platinum, pero no black", () => {
+    expect(canAccessGym("platinum", "classic")).toBe(true);
+    expect(canAccessGym("platinum", "platinum")).toBe(true);
+    expect(canAccessGym("platinum", "black")).toBe(false);
+  });
+
+  it("el acceso al gym es condición previa a poder reservar clases", () => {
+    const sinPlan = { uid: "user-3", rol: "usuario", plan: null };
+    expect(isCliente(sinPlan.rol)).toBe(true);
+    expect(canAccessGym(sinPlan.plan, "classic")).toBe(false);
   });
 });

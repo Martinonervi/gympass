@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, doc, getDoc, getDocs, addDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import { canAccessGym, PLAN_ORDER } from "../utils/planes";
 
 const COLORS = {
   bg: "#0f1520",
@@ -26,15 +27,8 @@ const COLORS = {
   error: "#ef4444",
 };
 
-const PLAN_ORDER  = { classic: 0, platinum: 1, black: 2 };
 const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
 const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
-
-function canAccessGym(userPlan, gymPlan) {
-  if (!userPlan) return false;
-  if (!gymPlan) return true; // gym has no plan requirement
-  return (PLAN_ORDER[userPlan] ?? -1) >= (PLAN_ORDER[gymPlan] ?? 0);
-}
 
 export default function GymDetailScreen({ route, navigation }) {
   const { gymId } = route.params;

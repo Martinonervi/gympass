@@ -17,6 +17,8 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import * as Location from "expo-location";
+import { PLAN_ORDER, canAccessGym } from "../utils/planes";
+import { getDistanceKm } from "../utils/gimnasios";
 
 const COLORS = {
   bg: "#0f1520",
@@ -40,7 +42,6 @@ const ACTIVIDADES_PRESET = [
   "Natación", "Stretching", "Crossfit", "Boxeo", "Zumba",
 ];
 
-const PLAN_ORDER  = { classic: 0, platinum: 1, black: 2 };
 const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
 const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
 const PLAN_OPTIONS = [
@@ -49,18 +50,6 @@ const PLAN_OPTIONS = [
   { id: "platinum", label: "Platinum" },
   { id: "black",    label: "Black"    },
 ];
-
-function getDistanceKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export default function ExploreScreen({ navigation }) {
   const [gyms, setGyms] = useState([]);
