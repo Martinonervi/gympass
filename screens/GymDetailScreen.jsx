@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  TextInput,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, doc, getDoc, getDocs, addDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, addDoc, setDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import { canAccessGym, canAccessClases, PLAN_ORDER } from "../utils/planes";
 
@@ -39,8 +41,15 @@ export default function GymDetailScreen({ route, navigation }) {
   const [userPlan, setUserPlan] = useState(null);
   const [nombreUsuario, setNombreUsuario] = useState("");
   const [reservando, setReservando] = useState(false);
+  const [comprobante, setComprobante] = useState(null);
   const [clases, setClases] = useState([]);
   const [reservandoClaseId, setReservandoClaseId] = useState(null);
+  const [resenas, setResenas] = useState([]);
+  const [miRating, setMiRating] = useState(0);
+  const [miComentario, setMiComentario] = useState("");
+  const [tieneResena, setTieneResena] = useState(false);
+  const [editandoResena, setEditandoResena] = useState(false);
+  const [guardandoResena, setGuardandoResena] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -65,8 +74,21 @@ export default function GymDetailScreen({ route, navigation }) {
           setNombreUsuario(nombre || user?.email?.split("@")[0] || "");
         }
 
-        const clasesSnap = await getDocs(collection(db, "gimnasios", gymId, "clases"));
+        const [clasesSnap, resenasSnap] = await Promise.all([
+          getDocs(collection(db, "gimnasios", gymId, "clases")),
+          getDocs(collection(db, "gimnasios", gymId, "resenas")),
+        ]);
         setClases(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const todasResenas = resenasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setResenas(todasResenas);
+        if (user) {
+          const mia = todasResenas.find((r) => r.userId === user.uid);
+          if (mia) {
+            setMiRating(mia.rating || 0);
+            setMiComentario(mia.comentario || "");
+            setTieneResena(true);
+          }
+        }
       } catch (error) {
         console.error("Error fetching gym details:", error);
       } finally {
@@ -133,7 +155,7 @@ export default function GymDetailScreen({ route, navigation }) {
       }
       // Black: no daily limit — allow multiple passes across all gyms
 
-      await addDoc(collection(db, "reservas"), {
+      const docRef = await addDoc(collection(db, "reservas"), {
         userId: user.uid,
         nombreUsuario,
         tipo: "pase",
@@ -142,7 +164,13 @@ export default function GymDetailScreen({ route, navigation }) {
         fecha: serverTimestamp(),
         estado: "pendiente",
       });
-      Alert.alert("¡Reserva realizada!", `Tu pase para ${gymData?.nombreGimnasio || "el gimnasio"} fue realizado con éxito.`);
+      setComprobante({
+        id: docRef.id,
+        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "Gimnasio",
+        tipo: "pase",
+        estado: "pendiente",
+        fecha: new Date(),
+      });
     } catch (e) {
       console.error("Error reservando pase:", e);
       Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
@@ -236,6 +264,32 @@ export default function GymDetailScreen({ route, navigation }) {
     }
   };
 
+  const guardarResena = async () => {
+    const user = auth.currentUser;
+    if (!user || !miRating) return;
+    setGuardandoResena(true);
+    try {
+      const payload = {
+        userId: user.uid,
+        nombreUsuario,
+        rating: miRating,
+        comentario: miComentario.trim(),
+        fecha: serverTimestamp(),
+      };
+      await setDoc(doc(db, "gimnasios", gymId, "resenas", user.uid), payload);
+      setTieneResena(true);
+      setEditandoResena(false);
+      setResenas((prev) => {
+        const resto = prev.filter((r) => r.userId !== user.uid);
+        return [...resto, { id: user.uid, ...payload }];
+      });
+    } catch (e) {
+      Alert.alert("Error", "No se pudo guardar la reseña.");
+    } finally {
+      setGuardandoResena(false);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, styles.center]}>
@@ -261,6 +315,9 @@ export default function GymDetailScreen({ route, navigation }) {
   const { descripcion, horarios, fotos = [] } = gymData;
   const nombre = gymData.nombreGimnasio || gymData.nombre || "Gimnasio";
   const esCliente = userRole === "usuario";
+  const avgRating = resenas.length > 0
+    ? resenas.reduce((sum, r) => sum + (r.rating || 0), 0) / resenas.length
+    : null;
   const gymPlan = gymData?.planGimnasio || "classic";
   const canAccess = canAccessGym(userPlan, gymPlan);
 
@@ -282,6 +339,64 @@ export default function GymDetailScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <Modal
+        visible={!!comprobante}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComprobante(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.ticketContainer}>
+            <View style={styles.ticketTop}>
+              <MaterialCommunityIcons name="ticket-confirmation" size={40} color={COLORS.green} />
+              <Text style={styles.ticketTitle}>¡Reserva confirmada!</Text>
+              <Text style={styles.ticketGym}>{comprobante?.nombreGimnasio}</Text>
+            </View>
+
+            <View style={styles.ticketDivider}>
+              <View style={styles.ticketNotch} />
+              <View style={styles.ticketDash} />
+              <View style={[styles.ticketNotch, { right: -14, left: undefined }]} />
+            </View>
+
+            <View style={styles.ticketBottom}>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Tipo</Text>
+                <Text style={styles.ticketValue}>Pase libre</Text>
+              </View>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Fecha</Text>
+                <Text style={styles.ticketValue}>
+                  {comprobante?.fecha?.toLocaleDateString("es-AR", {
+                    day: "2-digit", month: "2-digit", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </Text>
+              </View>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Estado</Text>
+                <View style={styles.ticketEstadoBadge}>
+                  <Text style={styles.ticketEstadoText}>Activo</Text>
+                </View>
+              </View>
+              <View style={[styles.ticketRow, { marginTop: 8 }]}>
+                <Text style={styles.ticketLabel}>Código</Text>
+                <Text style={styles.ticketCode}>
+                  #{comprobante?.id?.slice(-8).toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.ticketCloseBtn}
+              onPress={() => setComprobante(null)}
+            >
+              <Text style={styles.ticketCloseBtnText}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.container}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
@@ -302,6 +417,13 @@ export default function GymDetailScreen({ route, navigation }) {
             </View>
           )}
         </View>
+        {avgRating !== null && (
+          <View style={styles.ratingRow}>
+            <MaterialCommunityIcons name="star" size={16} color="#f59e0b" />
+            <Text style={styles.ratingAvg}>{avgRating.toFixed(1)}</Text>
+            <Text style={styles.ratingCount}>({resenas.length} reseña{resenas.length !== 1 ? "s" : ""})</Text>
+          </View>
+        )}
 
         {fotos && fotos.length > 0 && (
           <View style={styles.photosSection}>
@@ -457,6 +579,125 @@ export default function GymDetailScreen({ route, navigation }) {
             })}
           </View>
         )}
+
+        {/* Reseñas */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Reseñas</Text>
+
+          {/* Formulario del usuario */}
+          {esCliente && (
+            <View style={styles.resenaForm}>
+              {tieneResena && !editandoResena ? (
+                <>
+                  <Text style={styles.resenaFormLabel}>Tu reseña</Text>
+                  <View style={styles.starsRow}>
+                    {[1,2,3,4,5].map((i) => (
+                      <MaterialCommunityIcons
+                        key={i}
+                        name={i <= miRating ? "star" : "star-outline"}
+                        size={22}
+                        color="#f59e0b"
+                      />
+                    ))}
+                  </View>
+                  {!!miComentario && (
+                    <Text style={styles.resenaComentario}>{miComentario}</Text>
+                  )}
+                  <TouchableOpacity
+                    style={styles.resenaEditarBtn}
+                    onPress={() => setEditandoResena(true)}
+                  >
+                    <MaterialCommunityIcons name="pencil-outline" size={14} color={COLORS.green} />
+                    <Text style={styles.resenaEditarBtnText}>Editar reseña</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.resenaFormLabel}>
+                    {tieneResena ? "Editar tu reseña" : "Dejá tu reseña"}
+                  </Text>
+                  <View style={styles.starsRow}>
+                    {[1,2,3,4,5].map((i) => (
+                      <TouchableOpacity key={i} onPress={() => setMiRating(i)}>
+                        <MaterialCommunityIcons
+                          name={i <= miRating ? "star" : "star-outline"}
+                          size={28}
+                          color="#f59e0b"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={styles.resenaInput}
+                    placeholder="Comentario (opcional)"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={miComentario}
+                    onChangeText={setMiComentario}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                  <View style={styles.resenaActions}>
+                    {tieneResena && (
+                      <TouchableOpacity
+                        style={styles.resenaCancelarBtn}
+                        onPress={() => setEditandoResena(false)}
+                      >
+                        <Text style={styles.resenaCancelarText}>Cancelar</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.resenaGuardarBtn,
+                        (!miRating || guardandoResena) && styles.resenaGuardarBtnDisabled,
+                      ]}
+                      onPress={guardarResena}
+                      disabled={!miRating || guardandoResena}
+                    >
+                      <Text style={styles.resenaGuardarBtnText}>
+                        {guardandoResena ? "Guardando..." : tieneResena ? "Actualizar" : "Publicar"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Lista de reseñas */}
+          {resenas.length === 0 ? (
+            <Text style={styles.resenaEmpty}>Todavía no hay reseñas.</Text>
+          ) : (
+            resenas
+              .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0))
+              .map((r) => (
+                <View key={r.id} style={styles.resenaCard}>
+                  <View style={styles.resenaCardHeader}>
+                    <Text style={styles.resenaCardNombre}>{r.nombreUsuario || "Usuario"}</Text>
+                    <View style={styles.starsRowSmall}>
+                      {[1,2,3,4,5].map((i) => (
+                        <MaterialCommunityIcons
+                          key={i}
+                          name={i <= r.rating ? "star" : "star-outline"}
+                          size={14}
+                          color="#f59e0b"
+                        />
+                      ))}
+                    </View>
+                  </View>
+                  {!!r.comentario && (
+                    <Text style={styles.resenaCardComentario}>{r.comentario}</Text>
+                  )}
+                  {r.fecha?.seconds && (
+                    <Text style={styles.resenaCardFecha}>
+                      {new Date(r.fecha.seconds * 1000).toLocaleDateString("es-AR", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                      })}
+                    </Text>
+                  )}
+                </View>
+              ))
+          )}
+        </View>
 
       </ScrollView>
     </SafeAreaView>
@@ -620,6 +861,191 @@ const styles = StyleSheet.create({
   claseReservarBtnText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 20,
+    marginTop: -12,
+  },
+  ratingAvg: { color: "#f59e0b", fontWeight: "700", fontSize: 15 },
+  ratingCount: { color: COLORS.textMuted, fontSize: 13 },
+
+  resenaForm: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 14,
+  },
+  resenaFormLabel: { color: COLORS.textMuted, fontSize: 13, marginBottom: 10 },
+  starsRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
+  starsRowSmall: { flexDirection: "row", gap: 2 },
+  resenaComentario: { color: COLORS.textMuted, fontSize: 13, marginBottom: 10 },
+  resenaEditarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+  },
+  resenaEditarBtnText: { color: COLORS.green, fontSize: 13, fontWeight: "600" },
+  resenaInput: {
+    backgroundColor: "#0d1824",
+    color: COLORS.text,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minHeight: 72,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  resenaActions: { flexDirection: "row", gap: 10 },
+  resenaCancelarBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  resenaCancelarText: { color: COLORS.textMuted, fontSize: 14 },
+  resenaGuardarBtn: {
+    flex: 1,
+    backgroundColor: COLORS.green,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  resenaGuardarBtnDisabled: { opacity: 0.4 },
+  resenaGuardarBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+
+  resenaEmpty: { color: COLORS.textMuted, fontSize: 14, marginBottom: 8 },
+  resenaCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  resenaCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  resenaCardNombre: { color: COLORS.text, fontSize: 14, fontWeight: "600" },
+  resenaCardComentario: { color: COLORS.textMuted, fontSize: 13, marginBottom: 4, lineHeight: 18 },
+  resenaCardFecha: { color: COLORS.textMuted, fontSize: 11 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  ticketContainer: {
+    width: "100%",
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ticketTop: {
+    alignItems: "center",
+    padding: 28,
+    gap: 8,
+  },
+  ticketTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  ticketGym: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  ticketDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 0,
+    position: "relative",
+  },
+  ticketNotch: {
+    position: "absolute",
+    left: -14,
+    top: -14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ticketDash: {
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: "dashed",
+    flex: 1,
+    marginHorizontal: 14,
+  },
+  ticketBottom: {
+    padding: 24,
+    gap: 12,
+  },
+  ticketRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  ticketLabel: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+  },
+  ticketValue: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  ticketEstadoBadge: {
+    backgroundColor: "#0a2e18",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#22c55e",
+  },
+  ticketEstadoText: {
+    color: "#22c55e",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  ticketCode: {
+    color: COLORS.green,
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+  ticketCloseBtn: {
+    margin: 24,
+    marginTop: 0,
+    backgroundColor: COLORS.green,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  ticketCloseBtnText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "700",
   },
 });

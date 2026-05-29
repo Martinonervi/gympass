@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert,
+  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore';
@@ -60,6 +60,7 @@ export default function HomeScreen() {
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [reservas, setReservas] = useState([]);
   const [loadingReservas, setLoadingReservas] = useState(true);
+  const [comprobante, setComprobante] = useState(null);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
@@ -140,9 +141,89 @@ export default function HomeScreen() {
     );
   };
 
+  const esClaseComp = comprobante?.tipo === 'clase';
+  const fechaComp = comprobante?.fecha?.seconds
+    ? new Date(comprobante.fecha.seconds * 1000).toLocaleDateString('es-AR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : '';
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+
+      <Modal
+        visible={!!comprobante}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComprobante(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.ticketContainer}>
+            <View style={styles.ticketTop}>
+              <MaterialCommunityIcons
+                name={esClaseComp ? 'account-group' : 'ticket-confirmation'}
+                size={40}
+                color={COLORS.green}
+              />
+              <Text style={styles.ticketTitle}>Comprobante de reserva</Text>
+              <Text style={styles.ticketGym}>
+                {esClaseComp ? comprobante?.nombreClase : comprobante?.nombreGimnasio}
+              </Text>
+            </View>
+
+            <View style={styles.ticketDivider}>
+              <View style={styles.ticketNotch} />
+              <View style={[styles.ticketNotch, { right: -14, left: undefined }]} />
+            </View>
+
+            <View style={styles.ticketBottom}>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Tipo</Text>
+                <Text style={styles.ticketValue}>{esClaseComp ? 'Clase grupal' : 'Pase libre'}</Text>
+              </View>
+              {esClaseComp && comprobante?.nombreGimnasio ? (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Gimnasio</Text>
+                  <Text style={styles.ticketValue}>{comprobante.nombreGimnasio}</Text>
+                </View>
+              ) : null}
+              {esClaseComp && comprobante?.diaHora ? (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Horario</Text>
+                  <Text style={styles.ticketValue}>{comprobante.diaHora}</Text>
+                </View>
+              ) : null}
+              {fechaComp ? (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Reservado</Text>
+                  <Text style={styles.ticketValue}>{fechaComp}</Text>
+                </View>
+              ) : null}
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Estado</Text>
+                <View style={styles.ticketEstadoBadge}>
+                  <Text style={styles.ticketEstadoText}>Activo</Text>
+                </View>
+              </View>
+              <View style={[styles.ticketRow, { marginTop: 8 }]}>
+                <Text style={styles.ticketLabel}>Código</Text>
+                <Text style={styles.ticketCode}>
+                  #{comprobante?.id?.slice(-8).toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.ticketCloseBtn}
+              onPress={() => setComprobante(null)}
+            >
+              <Text style={styles.ticketCloseBtnText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -228,7 +309,7 @@ export default function HomeScreen() {
               : '';
             const esClase = res.tipo === 'clase';
             return (
-              <View key={res.id} style={styles.reservationCard}>
+              <TouchableOpacity key={res.id} style={styles.reservationCard} onPress={() => setComprobante(res)} activeOpacity={0.75}>
                 <View style={styles.resIcon}>
                   <MaterialCommunityIcons
                     name={esClase ? 'account-group' : 'ticket-confirmation-outline'}
@@ -265,7 +346,7 @@ export default function HomeScreen() {
                 >
                   <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -646,5 +727,103 @@ atajoLabel: {
   color: COLORS.textSecondary,
   textAlign: 'center',
   fontWeight: '500',
+},
+
+modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.7)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 24,
+},
+ticketContainer: {
+  width: '100%',
+  backgroundColor: COLORS.card,
+  borderRadius: 20,
+  overflow: 'hidden',
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+ticketTop: {
+  alignItems: 'center',
+  padding: 28,
+  gap: 8,
+},
+ticketTitle: {
+  color: COLORS.text,
+  fontSize: 20,
+  fontWeight: '800',
+  marginTop: 4,
+},
+ticketGym: {
+  color: COLORS.textMuted,
+  fontSize: 14,
+  textAlign: 'center',
+},
+ticketDivider: {
+  height: 1,
+  backgroundColor: COLORS.border,
+  position: 'relative',
+},
+ticketNotch: {
+  position: 'absolute',
+  left: -14,
+  top: -14,
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: COLORS.bg,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+ticketBottom: {
+  padding: 24,
+  gap: 12,
+},
+ticketRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+},
+ticketLabel: {
+  color: COLORS.textMuted,
+  fontSize: 13,
+},
+ticketValue: {
+  color: COLORS.text,
+  fontSize: 13,
+  fontWeight: '600',
+},
+ticketEstadoBadge: {
+  backgroundColor: '#0a2e18',
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  paddingVertical: 3,
+  borderWidth: 1,
+  borderColor: '#22c55e',
+},
+ticketEstadoText: {
+  color: '#22c55e',
+  fontSize: 12,
+  fontWeight: '700',
+},
+ticketCode: {
+  color: COLORS.green,
+  fontSize: 16,
+  fontWeight: '800',
+  letterSpacing: 2,
+},
+ticketCloseBtn: {
+  margin: 24,
+  marginTop: 0,
+  backgroundColor: COLORS.greenDark,
+  borderRadius: 14,
+  paddingVertical: 14,
+  alignItems: 'center',
+},
+ticketCloseBtnText: {
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: '700',
 },
 });
