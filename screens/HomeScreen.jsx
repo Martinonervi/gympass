@@ -336,9 +336,6 @@ export default function HomeScreen() {
                       <Text style={styles.resLocText}>Reservado el {fecha}</Text>
                     </View>
                   ) : null}
-                  {!esClase && (
-                    <Text style={styles.resCode}>#{res.id.slice(-6).toUpperCase()}</Text>
-                  )}
                 </View>
                 <TouchableOpacity
                   onPress={() => eliminarReserva(res.id, esClase ? res.nombreClase : res.nombreGimnasio)}

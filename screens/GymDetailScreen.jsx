@@ -42,6 +42,7 @@ export default function GymDetailScreen({ route, navigation }) {
   const [nombreUsuario, setNombreUsuario] = useState("");
   const [reservando, setReservando] = useState(false);
   const [comprobante, setComprobante] = useState(null);
+  const [inscriptosPorClase, setInscriptosPorClase] = useState({});
   const [clases, setClases] = useState([]);
   const [reservandoClaseId, setReservandoClaseId] = useState(null);
   const [resenas, setResenas] = useState([]);
@@ -74,11 +75,18 @@ export default function GymDetailScreen({ route, navigation }) {
           setNombreUsuario(nombre || user?.email?.split("@")[0] || "");
         }
 
-        const [clasesSnap, resenasSnap] = await Promise.all([
+        const [clasesSnap, resenasSnap, reservasClasesSnap] = await Promise.all([
           getDocs(collection(db, "gimnasios", gymId, "clases")),
           getDocs(collection(db, "gimnasios", gymId, "resenas")),
+          getDocs(query(collection(db, "reservas"), where("gymId", "==", gymId), where("tipo", "==", "clase"))),
         ]);
         setClases(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const counts = {};
+        reservasClasesSnap.docs.forEach((d) => {
+          const cid = d.data().claseId;
+          if (cid) counts[cid] = (counts[cid] || 0) + 1;
+        });
+        setInscriptosPorClase(counts);
         const todasResenas = resenasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setResenas(todasResenas);
         if (user) {
@@ -534,6 +542,8 @@ export default function GymDetailScreen({ route, navigation }) {
             {clases.map((clase) => {
               const puedeReservar = esCliente && canAccessClases(userPlan);
               const estaReservando = reservandoClaseId === clase.id;
+              const inscriptos = inscriptosPorClase[clase.id] || 0;
+              const sinLugares = clase.cupo && inscriptos >= clase.cupo;
               return (
                 <View key={clase.id} style={styles.claseCard}>
                   <View style={styles.claseHeader}>
@@ -541,7 +551,11 @@ export default function GymDetailScreen({ route, navigation }) {
                       <Text style={styles.activityChipText}>{clase.actividad || clase.nombre}</Text>
                     </View>
                     {clase.cupo ? (
-                      <Text style={styles.claseCupo}>Cupo: {clase.cupo}</Text>
+                      <View style={[styles.claseCupoBadge, sinLugares && styles.claseCupoBadgeLleno]}>
+                        <Text style={[styles.claseCupo, sinLugares && styles.claseCupoLleno]}>
+                          {inscriptos}/{clase.cupo} inscriptos
+                        </Text>
+                      </View>
                     ) : null}
                   </View>
                   <Text style={styles.claseHorario}>{clase.diaHora || "Horario no especificado"}</Text>
@@ -838,9 +852,25 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 18,
   },
+  claseCupoBadge: {
+    backgroundColor: "#0a2e18",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  claseCupoBadgeLleno: {
+    backgroundColor: "#2a0a0a",
+    borderColor: COLORS.error,
+  },
   claseCupo: {
-    color: COLORS.textMuted,
+    color: COLORS.green,
     fontSize: 12,
+    fontWeight: "600",
+  },
+  claseCupoLleno: {
+    color: COLORS.error,
   },
   claseReservarBtn: {
     flexDirection: "row",
