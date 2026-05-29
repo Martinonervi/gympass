@@ -255,6 +255,9 @@ export default function HomeScreen() {
                       <Text style={styles.resLocText}>Reservado el {fecha}</Text>
                     </View>
                   ) : null}
+                  {!esClase && (
+                    <Text style={styles.resCode}>#{res.id.slice(-6).toUpperCase()}</Text>
+                  )}
                 </View>
                 <TouchableOpacity
                   onPress={() => eliminarReserva(res.id, esClase ? res.nombreClase : res.nombreGimnasio)}
@@ -522,6 +525,13 @@ resLoc: {
 resLocText: {
   fontSize: 11,
   color: COLORS.textMuted,
+},
+resCode: {
+  fontSize: 11,
+  color: COLORS.textMuted,
+  fontWeight: '700',
+  letterSpacing: 1,
+  marginTop: 3,
 },
 deleteBtn: {
   padding: 6,

@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, doc, getDoc, getDocs, addDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
-import { canAccessGym, PLAN_ORDER } from "../utils/planes";
+import { canAccessGym, canAccessClases, PLAN_ORDER } from "../utils/planes";
 
 const COLORS = {
   bg: "#0f1520",
@@ -37,7 +37,10 @@ export default function GymDetailScreen({ route, navigation }) {
   const [gymData, setGymData] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userPlan, setUserPlan] = useState(null);
+  const [nombreUsuario, setNombreUsuario] = useState("");
   const [reservando, setReservando] = useState(false);
+  const [clases, setClases] = useState([]);
+  const [reservandoClaseId, setReservandoClaseId] = useState(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -55,9 +58,15 @@ export default function GymDetailScreen({ route, navigation }) {
         if (gymSnap.exists()) setGymData(gymSnap.data());
 
         if (userSnap?.exists()) {
-          setUserRole(userSnap.data().rol);
-          setUserPlan(userSnap.data().plan || null);
+          const ud = userSnap.data();
+          setUserRole(ud.rol);
+          setUserPlan(ud.plan || null);
+          const nombre = `${ud.nombre || ""} ${ud.apellido || ""}`.trim();
+          setNombreUsuario(nombre || user?.email?.split("@")[0] || "");
         }
+
+        const clasesSnap = await getDocs(collection(db, "gimnasios", gymId, "clases"));
+        setClases(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (error) {
         console.error("Error fetching gym details:", error);
       } finally {
@@ -126,6 +135,7 @@ export default function GymDetailScreen({ route, navigation }) {
 
       await addDoc(collection(db, "reservas"), {
         userId: user.uid,
+        nombreUsuario,
         tipo: "pase",
         gymId,
         nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
@@ -138,6 +148,91 @@ export default function GymDetailScreen({ route, navigation }) {
       Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
     } finally {
       setReservando(false);
+    }
+  };
+
+  const reservarClase = async (clase) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    if (!userPlan) {
+      Alert.alert(
+        "Sin plan activo",
+        "Necesitás un plan activo para reservar clases.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
+        ]
+      );
+      return;
+    }
+
+    if (!canAccessClases(userPlan)) {
+      Alert.alert(
+        "Plan insuficiente",
+        "Para reservar clases necesitás el plan Platinum o Black.",
+        [
+          { text: "Cerrar", style: "cancel" },
+          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
+        ]
+      );
+      return;
+    }
+
+    const gymPlan = gymData?.planGimnasio || "classic";
+    if (!canAccessGym(userPlan, gymPlan)) {
+      Alert.alert(
+        "Plan insuficiente",
+        `Este gimnasio requiere el plan ${PLAN_LABELS[gymPlan] || gymPlan} o superior. Tu plan actual es ${PLAN_LABELS[userPlan] || userPlan}.`,
+        [
+          { text: "Cerrar", style: "cancel" },
+          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
+        ]
+      );
+      return;
+    }
+
+    setReservandoClaseId(clase.id);
+    try {
+      const reservasSnap = await getDocs(
+        query(
+          collection(db, "reservas"),
+          where("gymId", "==", gymId),
+          where("claseId", "==", clase.id),
+          where("tipo", "==", "clase")
+        )
+      );
+      const reservasClase = reservasSnap.docs.map((d) => d.data());
+
+      const yaTiene = reservasClase.some((r) => r.userId === user.uid);
+      if (yaTiene) {
+        Alert.alert("Ya reservaste", "Ya tenés una reserva para esta clase.");
+        return;
+      }
+
+      if (clase.cupo && reservasClase.length >= clase.cupo) {
+        Alert.alert("Sin lugares", "Esta clase ya no tiene lugares disponibles.");
+        return;
+      }
+
+      await addDoc(collection(db, "reservas"), {
+        userId: user.uid,
+        nombreUsuario,
+        tipo: "clase",
+        gymId,
+        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
+        claseId: clase.id,
+        nombreClase: clase.actividad || clase.nombre || "",
+        diaHora: clase.diaHora || "",
+        fecha: serverTimestamp(),
+        estado: "pendiente",
+      });
+      Alert.alert("¡Reserva realizada!", `Tu lugar en ${clase.actividad || "la clase"} fue reservado con éxito.`);
+    } catch (e) {
+      console.error("Error reservando clase:", e);
+      Alert.alert("Error", e.message || "No se pudo realizar la reserva.");
+    } finally {
+      setReservandoClaseId(null);
     }
   };
 
@@ -311,6 +406,58 @@ export default function GymDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {clases.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Clases</Text>
+            {clases.map((clase) => {
+              const puedeReservar = esCliente && canAccessClases(userPlan);
+              const estaReservando = reservandoClaseId === clase.id;
+              return (
+                <View key={clase.id} style={styles.claseCard}>
+                  <View style={styles.claseHeader}>
+                    <View style={styles.activityChip}>
+                      <Text style={styles.activityChipText}>{clase.actividad || clase.nombre}</Text>
+                    </View>
+                    {clase.cupo ? (
+                      <Text style={styles.claseCupo}>Cupo: {clase.cupo}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.claseHorario}>{clase.diaHora || "Horario no especificado"}</Text>
+                  {clase.duracion > 0 && (
+                    <Text style={styles.claseMeta}>{clase.duracion} min</Text>
+                  )}
+                  {!!clase.profesor && (
+                    <Text style={styles.claseMeta}>Prof. {clase.profesor}</Text>
+                  )}
+                  {!!clase.descripcion && (
+                    <Text style={styles.claseDesc}>{clase.descripcion}</Text>
+                  )}
+                  {esCliente && (
+                    <TouchableOpacity
+                      style={[
+                        styles.claseReservarBtn,
+                        !puedeReservar && styles.claseReservarBtnLocked,
+                        estaReservando && styles.claseReservarBtnDisabled,
+                      ]}
+                      onPress={() => reservarClase(clase)}
+                      disabled={estaReservando}
+                    >
+                      <MaterialCommunityIcons
+                        name={puedeReservar ? "account-plus-outline" : "lock-outline"}
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text style={styles.claseReservarBtnText}>
+                        {estaReservando ? "Reservando..." : puedeReservar ? "Reservar lugar" : "Requiere plan Platinum"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -418,4 +565,61 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   amenityChipText: { color: COLORS.textMuted, fontSize: 13 },
+
+  claseCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  claseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  claseHorario: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  claseMeta: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  claseDesc: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  claseCupo: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+  },
+  claseReservarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: COLORS.green,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  claseReservarBtnLocked: {
+    backgroundColor: "#374151",
+  },
+  claseReservarBtnDisabled: {
+    opacity: 0.6,
+  },
+  claseReservarBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });
