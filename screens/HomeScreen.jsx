@@ -4,7 +4,8 @@ import {
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, limit } from 'firebase/firestore';
+import QRCode from 'react-native-qrcode-svg';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -61,6 +62,7 @@ export default function HomeScreen() {
   const [reservas, setReservas] = useState([]);
   const [loadingReservas, setLoadingReservas] = useState(true);
   const [comprobante, setComprobante] = useState(null);
+  const [feedbackPendiente, setFeedbackPendiente] = useState([]);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
@@ -95,14 +97,43 @@ export default function HomeScreen() {
           const reservasSnap = await getDocs(query(
             collection(db, 'reservas'),
             where('userId', '==', user.uid),
-            limit(5)
+            limit(50)
           ));
-          console.log('Reservas encontradas:', reservasSnap.size);
+
+          const now = new Date();
+          const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+          const todayStr = now.toISOString().slice(0, 10);
+
+          const isExpiredRes = (r) => {
+            if (r.tipo === 'pase') {
+              if (!r.fecha?.seconds) return false;
+              return new Date(r.fecha.seconds * 1000) < todayMidnight;
+            }
+            if (r.tipo === 'clase') {
+              if (!r.claseFecha) return false;
+              if (r.claseFecha < todayStr) return true;
+              if (r.claseFecha === todayStr && r.horaFin) {
+                const [h, m] = r.horaFin.split(':').map(Number);
+                const [y, mo, d] = todayStr.split('-').map(Number);
+                return new Date(y, mo - 1, d, h, m, 0, 0) <= now;
+              }
+              return false;
+            }
+            return false;
+          };
+
+          // Fire-and-forget deletion of expired docs (don't block the UI)
+          reservasSnap.docs
+            .filter(d => isExpiredRes(d.data()))
+            .forEach(d => deleteDoc(doc(db, 'reservas', d.id)).catch(() => {}));
+
           if (active) {
             const lista = reservasSnap.docs
+              .filter(d => !isExpiredRes(d.data()))
               .map((d) => ({ id: d.id, ...d.data() }))
               .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
             setReservas(lista);
+            setFeedbackPendiente(lista.filter(r => r.estado === 'usado' && !r.feedbackDado));
           }
         } catch (e) {
           console.log('HomeScreen: error cargando reservas:', e?.code, e?.message);
@@ -141,6 +172,26 @@ export default function HomeScreen() {
     );
   };
 
+  const handleFeedback = async (ocupacion) => {
+    const reserva = feedbackPendiente[0];
+    if (!reserva) return;
+    try {
+      await updateDoc(doc(db, 'reservas', reserva.id), {
+        feedbackDado: true,
+        ocupacion,
+      });
+      setFeedbackPendiente(prev => prev.slice(1));
+      setSelectedOccupancy(null);
+    } catch (e) {
+      console.error('Error saving feedback:', e);
+    }
+  };
+
+  const skipFeedback = () => {
+    setFeedbackPendiente(prev => prev.slice(1));
+    setSelectedOccupancy(null);
+  };
+
   const esClaseComp = comprobante?.tipo === 'clase';
   const fechaComp = comprobante?.fecha?.seconds
     ? new Date(comprobante.fecha.seconds * 1000).toLocaleDateString('es-AR', {
@@ -169,7 +220,9 @@ export default function HomeScreen() {
               />
               <Text style={styles.ticketTitle}>Comprobante de reserva</Text>
               <Text style={styles.ticketGym}>
-                {esClaseComp ? comprobante?.nombreClase : comprobante?.nombreGimnasio}
+                {esClaseComp
+                  ? (comprobante?.actividad || comprobante?.nombreClase || 'Clase')
+                  : comprobante?.nombreGimnasio}
               </Text>
             </View>
 
@@ -214,6 +267,17 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </View>
+
+            {!!comprobante?.id && (
+              <View style={styles.qrWrap}>
+                <QRCode
+                  value={JSON.stringify({ reservaId: comprobante.id, gymId: comprobante.gymId, tipo: comprobante.tipo || 'pase' })}
+                  size={130}
+                  backgroundColor="#152030"
+                  color="#22c55e"
+                />
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.ticketCloseBtn}
@@ -322,12 +386,12 @@ export default function HomeScreen() {
                     <Text style={styles.resTag}>{esClase ? 'Clase' : 'Pase'}</Text>
                   </View>
                   <Text style={styles.resName}>
-                    {esClase ? res.nombreClase : res.nombreGimnasio}
+                    {esClase ? (res.actividad || res.nombreClase || 'Clase') : res.nombreGimnasio}
                   </Text>
                   {esClase && res.nombreGimnasio ? (
                     <Text style={styles.resDetail}>{res.nombreGimnasio}</Text>
                   ) : null}
-                  {esClase && res.diaHora ? (
+                  {!esClase ? null : res.diaHora ? (
                     <Text style={styles.resDetail}>{res.diaHora}</Text>
                   ) : null}
                   {fecha ? (
@@ -338,7 +402,7 @@ export default function HomeScreen() {
                   ) : null}
                 </View>
                 <TouchableOpacity
-                  onPress={() => eliminarReserva(res.id, esClase ? res.nombreClase : res.nombreGimnasio)}
+                  onPress={() => eliminarReserva(res.id, esClase ? (res.actividad || res.nombreClase || 'Clase') : res.nombreGimnasio)}
                   style={styles.deleteBtn}
                 >
                   <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
@@ -348,42 +412,67 @@ export default function HomeScreen() {
           })
         )}
 
-        {/* Feedback ocupación */}
-        <View style={styles.feedbackCard}>
-          <View style={styles.fbHeader}>
-            <View style={styles.fbIconWrap}>
-              <Ionicons name="location" size={16} color="#f59e0b" />
-            </View>
-            <View>
-              <Text style={styles.fbTitle}>Visita reciente: {mockData.recentVisit.gym}</Text>
-              <Text style={styles.fbTime}>{mockData.recentVisit.timeAgo}</Text>
-            </View>
-          </View>
-          <Text style={styles.fbQuestion}>¿Qué tan lleno estaba el gimnasio hoy?</Text>
-          <View style={styles.fbOptions}>
-            {OCCUPANCY.map((opt, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.fbOption}
-                onPress={() => setSelectedOccupancy(i)}
-              >
-                <View style={[
-                  styles.fbEmoji,
-                  { backgroundColor: opt.color },
-                  selectedOccupancy === i && styles.fbEmojiSelected,
-                ]}>
-                  <Text style={{ fontSize: 18 }}>{opt.emoji}</Text>
+        {/* Feedback ocupación — only shown when there's a validated reservation pending feedback */}
+        {feedbackPendiente.length > 0 && (() => {
+          const fb = feedbackPendiente[0];
+          const esClaseFb = fb.tipo === 'clase';
+          return (
+            <View style={styles.feedbackCard}>
+              <View style={styles.fbHeader}>
+                <View style={styles.fbIconWrap}>
+                  <Ionicons name="location" size={16} color="#f59e0b" />
                 </View>
-                <Text style={[
-                  styles.fbLabel,
-                  selectedOccupancy === i && { color: COLORS.green },
-                ]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fbTitle}>
+                    {esClaseFb
+                      ? `Clase: ${fb.actividad || 'Clase grupal'}`
+                      : `Pase: ${fb.nombreGimnasio || 'Gimnasio'}`}
+                  </Text>
+                  <Text style={styles.fbTime}>{fb.nombreGimnasio}</Text>
+                </View>
+              </View>
+              <Text style={styles.fbQuestion}>¿Qué tan lleno estaba el gimnasio?</Text>
+              <View style={styles.fbOptions}>
+                {OCCUPANCY.map((opt, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.fbOption}
+                    onPress={() => setSelectedOccupancy(i)}
+                  >
+                    <View style={[
+                      styles.fbEmoji,
+                      { backgroundColor: opt.color },
+                      selectedOccupancy === i && styles.fbEmojiSelected,
+                    ]}>
+                      <Text style={{ fontSize: 18 }}>{opt.emoji}</Text>
+                    </View>
+                    <Text style={[
+                      styles.fbLabel,
+                      selectedOccupancy === i && { color: COLORS.green },
+                    ]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={styles.fbSkipBtn}
+                  onPress={skipFeedback}
+                >
+                  <Text style={styles.fbSkipBtnText}>Saltar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.fbSendBtn, selectedOccupancy === null && { opacity: 0.4 }]}
+                  onPress={() => selectedOccupancy !== null && handleFeedback(selectedOccupancy)}
+                  disabled={selectedOccupancy === null}
+                >
+                  <Text style={styles.fbSendBtnText}>Enviar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Atajos */}
         <Text style={styles.atajoTitle}>Atajos de Exploración</Text>
@@ -821,6 +910,38 @@ ticketCloseBtn: {
 ticketCloseBtnText: {
   color: '#fff',
   fontSize: 16,
+  fontWeight: '700',
+},
+qrWrap: {
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 16,
+  borderTopWidth: 1,
+  borderTopColor: COLORS.border,
+},
+fbSkipBtn: {
+  flex: 1,
+  borderRadius: 10,
+  paddingVertical: 10,
+  alignItems: 'center',
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+fbSkipBtnText: {
+  color: COLORS.textMuted,
+  fontSize: 13,
+  fontWeight: '600',
+},
+fbSendBtn: {
+  flex: 2,
+  backgroundColor: COLORS.greenDark,
+  borderRadius: 10,
+  paddingVertical: 10,
+  alignItems: 'center',
+},
+fbSendBtnText: {
+  color: '#fff',
+  fontSize: 13,
   fontWeight: '700',
 },
 });

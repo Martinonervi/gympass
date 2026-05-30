@@ -68,6 +68,15 @@ function calcDuracion(inicio, fin) {
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 
+function horaToMins(horaStr) {
+  const [h, m] = horaStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minsToHora(mins) {
+  return `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
+}
+
 // ─── Snackbar ────────────────────────────────────────────────────────────────
 function Snackbar({ message, type = "error", visible }) {
   const translateY = useRef(new Animated.Value(100)).current;
@@ -175,18 +184,59 @@ export default function AddClassScreen({ route, navigation }) {
   }
 
   function aplicarHoraPicker(campo, horaStr) {
+    const newMins = horaToMins(horaStr);
+    const diaHorario = gymHorarios[dia];
+    const gymAbreMins   = diaHorario?.abierto ? horaToMins(diaHorario.abre)   : 0;
+    const gymCierraMins = diaHorario?.abierto ? horaToMins(diaHorario.cierra) : 23 * 60 + 59;
+
     if (campo === "inicio") {
-      if (horaStr >= horaFin) {
-        Alert.alert("Horario inválido", "La hora de inicio debe ser antes que la de fin.");
+      const finMins = horaToMins(horaFin);
+      if (newMins >= finMins) {
+        // Auto-adjust fin = inicio + 60 min
+        const newFinMins = newMins + 60;
+        if (newFinMins > 23 * 60 + 59) {
+          showSnackbar("La hora de inicio es demasiado tarde para agregar una clase.");
+          return false;
+        }
+        if (diaHorario?.abierto && (newMins < gymAbreMins || newFinMins > gymCierraMins)) {
+          showSnackbar(`La clase debe estar dentro del horario del gimnasio: ${diaHorario.abre} - ${diaHorario.cierra}`);
+          return false;
+        }
+        setHoraInicio(horaStr);
+        setHoraFin(minsToHora(newFinMins));
+      } else {
+        if (diaHorario?.abierto && newMins < gymAbreMins) {
+          showSnackbar(`El inicio no puede ser antes de la apertura del gimnasio: ${diaHorario.abre}`);
+          return false;
+        }
+        setHoraInicio(horaStr);
+      }
+    } else { // campo === "fin"
+      if (newMins === 0) {
+        showSnackbar("La hora de fin no puede ser las 00:00.");
         return false;
       }
-      setHoraInicio(horaStr);
-    } else {
-      if (horaStr <= horaInicio) {
-        Alert.alert("Horario inválido", "La hora de fin debe ser después de la de inicio.");
-        return false;
+      const inicioMins = horaToMins(horaInicio);
+      if (newMins <= inicioMins) {
+        // Auto-adjust inicio = fin - 60 min
+        const newInicioMins = newMins - 60;
+        if (newInicioMins < 0) {
+          showSnackbar("La hora de fin es demasiado temprana.");
+          return false;
+        }
+        if (diaHorario?.abierto && (newInicioMins < gymAbreMins || newMins > gymCierraMins)) {
+          showSnackbar(`La clase debe estar dentro del horario del gimnasio: ${diaHorario.abre} - ${diaHorario.cierra}`);
+          return false;
+        }
+        setHoraInicio(minsToHora(newInicioMins));
+        setHoraFin(horaStr);
+      } else {
+        if (diaHorario?.abierto && newMins > gymCierraMins) {
+          showSnackbar(`El fin no puede ser después del cierre del gimnasio: ${diaHorario.cierra}`);
+          return false;
+        }
+        setHoraFin(horaStr);
       }
-      setHoraFin(horaStr);
     }
     return true;
   }
@@ -224,8 +274,9 @@ export default function AddClassScreen({ route, navigation }) {
       }
     }
 
-    const cupoNum = cupo.trim() ? parseInt(cupo.trim(), 10) : null;
-    if (cupo.trim() && (isNaN(cupoNum) || cupoNum <= 0)) {
+    if (!cupo.trim()) { showSnackbar("El cupo es obligatorio."); return; }
+    const cupoNum = parseInt(cupo.trim(), 10);
+    if (isNaN(cupoNum) || cupoNum <= 0) {
       showSnackbar("El cupo debe ser un número positivo.");
       return;
     }
@@ -317,6 +368,15 @@ export default function AddClassScreen({ route, navigation }) {
           {isEditMode ? "Modificá los detalles de la clase." : "Configurá los detalles de la nueva clase."}
         </Text>
 
+        {isEditMode && (
+          <View style={styles.editNotice}>
+            <MaterialCommunityIcons name="information-outline" size={15} color={COLORS.green} />
+            <Text style={styles.editNoticeText}>
+              En modo edición solo podés modificar el profesor y la descripción.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.card}>
           {/* Actividad */}
           <Text style={styles.sectionTitle}>Actividad *</Text>
@@ -325,8 +385,9 @@ export default function AddClassScreen({ route, navigation }) {
             {gymActividades.map((act) => (
               <TouchableOpacity
                 key={act}
-                style={[styles.chip, actividad === act && styles.chipActive]}
-                onPress={() => setActividad(act)}
+                style={[styles.chip, actividad === act && styles.chipActive, isEditMode && styles.chipReadOnly]}
+                onPress={() => { if (!isEditMode) setActividad(act); }}
+                disabled={isEditMode}
               >
                 <Text style={[styles.chipText, actividad === act && styles.chipTextActive]}>{act}</Text>
               </TouchableOpacity>
@@ -345,15 +406,15 @@ export default function AddClassScreen({ route, navigation }) {
                   style={[
                     styles.diaChip,
                     isSelected && styles.diaChipActive,
-                    isClosed && styles.diaChipDisabled,
+                    (isClosed || isEditMode) && styles.diaChipDisabled,
                   ]}
-                  onPress={() => { if (!isClosed) setDia(key); }}
-                  disabled={isClosed}
+                  onPress={() => { if (!isClosed && !isEditMode) setDia(key); }}
+                  disabled={isClosed || isEditMode}
                 >
                   <Text style={[
                     styles.diaChipText,
                     isSelected && styles.diaChipTextActive,
-                    isClosed && styles.diaChipTextDisabled,
+                    (isClosed || isEditMode) && styles.diaChipTextDisabled,
                   ]}>
                     {short}
                   </Text>
@@ -361,7 +422,7 @@ export default function AddClassScreen({ route, navigation }) {
               );
             })}
           </View>
-          {closedDias.length > 0 && (
+          {!isEditMode && closedDias.length > 0 && (
             <Text style={styles.closedHint}>Los días atenuados están marcados como cerrados en tu gimnasio.</Text>
           )}
 
@@ -370,7 +431,11 @@ export default function AddClassScreen({ route, navigation }) {
           <View style={styles.horariosRow}>
             <View style={styles.horaBlock}>
               <Text style={styles.horaLabel}>Inicio</Text>
-              <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker("inicio")}>
+              <TouchableOpacity
+                style={[styles.horaPicker, isEditMode && styles.horaPickerReadOnly]}
+                onPress={() => { if (!isEditMode) abrirPicker("inicio"); }}
+                disabled={isEditMode}
+              >
                 <Text style={styles.horaText}>{horaInicio}</Text>
               </TouchableOpacity>
             </View>
@@ -379,7 +444,11 @@ export default function AddClassScreen({ route, navigation }) {
             </View>
             <View style={styles.horaBlock}>
               <Text style={styles.horaLabel}>Fin</Text>
-              <TouchableOpacity style={styles.horaPicker} onPress={() => abrirPicker("fin")}>
+              <TouchableOpacity
+                style={[styles.horaPicker, isEditMode && styles.horaPickerReadOnly]}
+                onPress={() => { if (!isEditMode) abrirPicker("fin"); }}
+                disabled={isEditMode}
+              >
                 <Text style={styles.horaText}>{horaFin}</Text>
               </TouchableOpacity>
             </View>
@@ -392,14 +461,15 @@ export default function AddClassScreen({ route, navigation }) {
           </View>
 
           {/* Cupo */}
-          <Text style={styles.sectionTitle}>Cupo</Text>
+          <Text style={styles.sectionTitle}>Cupo *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Ej: 15 (opcional)"
+            style={[styles.input, isEditMode && styles.inputReadOnly]}
+            placeholder="Ej: 15"
             placeholderTextColor={COLORS.textMuted}
             value={cupo}
-            onChangeText={(t) => setCupo(t.replace(/\D/g, ""))}
+            onChangeText={(t) => { if (!isEditMode) setCupo(t.replace(/\D/g, "")); }}
             keyboardType="numeric"
+            editable={!isEditMode}
           />
 
           {/* Profesor */}
@@ -551,6 +621,18 @@ const styles = StyleSheet.create({
   button: { backgroundColor: COLORS.greenDark, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 24 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
+
+  editNotice: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    backgroundColor: "#0a1f0e", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: COLORS.greenDark,
+    marginBottom: 8,
+  },
+  editNoticeText: { color: COLORS.green, fontSize: 13, flex: 1, lineHeight: 18 },
+  chipReadOnly: { opacity: 0.55 },
+  horaPickerReadOnly: { opacity: 0.55 },
+  inputReadOnly: { opacity: 0.55 },
 
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60, gap: 16, paddingHorizontal: 20 },
   emptyTitle: { color: COLORS.text, fontSize: 20, fontWeight: "700", textAlign: "center" },

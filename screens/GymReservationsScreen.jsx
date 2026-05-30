@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -41,18 +41,30 @@ function formatFecha(timestamp) {
 function groupByClase(reservas) {
   const map = {};
   for (const r of reservas) {
-    const key = r.claseId || r.nombreClase || "sin-clase";
+    // Group by claseId + claseFecha so each weekly occurrence is a separate group
+    const key = r.claseFecha
+      ? `${r.claseId || r.nombreClase || "sin-clase"}__${r.claseFecha}`
+      : r.claseId || r.nombreClase || "sin-clase";
     if (!map[key]) {
       map[key] = {
         key,
-        nombreClase: r.nombreClase || "Clase",
+        nombreClase: r.actividad || r.nombreClase || "Clase",
         diaHora: r.diaHora || "",
+        claseFecha: r.claseFecha || null,
+        claseFechaDisplay: r.claseFechaDisplay || null,
         reservas: [],
       };
     }
     map[key].reservas.push(r);
   }
-  return Object.values(map).sort((a, b) => a.nombreClase.localeCompare(b.nombreClase));
+  // Sort: first by date (claseFecha ascending), then by class name
+  return Object.values(map).sort((a, b) => {
+    if (a.claseFecha && b.claseFecha) {
+      if (a.claseFecha !== b.claseFecha) return a.claseFecha < b.claseFecha ? -1 : 1;
+    } else if (a.claseFecha) return -1;
+    else if (b.claseFecha) return 1;
+    return a.nombreClase.localeCompare(b.nombreClase);
+  });
 }
 
 function TabBar({ active, onChange }) {
@@ -81,7 +93,7 @@ function PaseCard({ item }) {
         <Text style={styles.cardTipo}>Pase libre</Text>
         <Text style={styles.cardCode}>#{item.id.slice(-6).toUpperCase()}</Text>
       </View>
-      <Text style={styles.cardUsuario}>{item.nombreUsuario || "Usuario"}</Text>
+      <Text style={styles.cardUsuario}>{item.emailUsuario || item.nombreUsuario || "Usuario"}</Text>
       {formatFecha(item.fecha) ? (
         <Text style={styles.cardFecha}>{formatFecha(item.fecha)}</Text>
       ) : null}
@@ -90,14 +102,17 @@ function PaseCard({ item }) {
 }
 
 function ClaseGroup({ group }) {
+  // Build subtitle: show specific date if available, otherwise fall back to diaHora
+  const subtitulo = group.claseFechaDisplay || group.diaHora || null;
+
   return (
     <View style={styles.claseGroup}>
       <View style={styles.claseGroupHeader}>
         <MaterialCommunityIcons name="account-group" size={18} color={COLORS.green} />
         <View style={{ flex: 1 }}>
           <Text style={styles.claseGroupNombre}>{group.nombreClase}</Text>
-          {!!group.diaHora && (
-            <Text style={styles.claseGroupHorario}>{group.diaHora}</Text>
+          {!!subtitulo && (
+            <Text style={styles.claseGroupHorario}>{subtitulo}</Text>
           )}
         </View>
         <View style={styles.claseGroupBadge}>
@@ -107,7 +122,7 @@ function ClaseGroup({ group }) {
       {group.reservas.map((r) => (
         <View key={r.id} style={styles.claseUserRow}>
           <MaterialCommunityIcons name="account-outline" size={15} color={COLORS.textMuted} />
-          <Text style={styles.claseUserNombre}>{r.nombreUsuario || "Usuario"}</Text>
+          <Text style={styles.claseUserNombre}>{r.emailUsuario || r.nombreUsuario || "Usuario"}</Text>
         </View>
       ))}
     </View>
@@ -127,7 +142,41 @@ export default function GymReservationsScreen({ navigation }) {
         const snap = await getDocs(
           query(collection(db, "reservas"), where("gymId", "==", user.uid))
         );
+
+        const now = new Date();
+        const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+        const todayStr = now.toISOString().slice(0, 10);
+
+        // Returns true when a reservation should be purged
+        const isExpired = (r) => {
+          if (r.tipo === "pase") {
+            // Pase is valid only for the calendar day it was created; expires at midnight
+            if (!r.fecha?.seconds) return false;
+            return new Date(r.fecha.seconds * 1000) < todayMidnight;
+          }
+          if (r.tipo === "clase") {
+            if (!r.claseFecha) return false;
+            if (r.claseFecha < todayStr) return true; // strictly past date
+            if (r.claseFecha === todayStr && r.horaFin) {
+              // Same day: expire once the class end-time has passed
+              const [h, m] = r.horaFin.split(":").map(Number);
+              const [y, mo, d] = todayStr.split("-").map(Number);
+              return new Date(y, mo - 1, d, h, m, 0, 0) <= now;
+            }
+            return false;
+          }
+          return false;
+        };
+
+        // Delete all expired reservations from Firestore
+        const deletePromises = snap.docs
+          .filter((d) => isExpired(d.data()))
+          .map((d) => deleteDoc(doc(db, "reservas", d.id)));
+        if (deletePromises.length > 0) await Promise.all(deletePromises);
+
+        // Keep only live reservations
         const data = snap.docs
+          .filter((d) => !isExpired(d.data()))
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
         setReservas(data);
@@ -154,9 +203,9 @@ export default function GymReservationsScreen({ navigation }) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="account-group" size={18} color={COLORS.green} />
-              <Text style={styles.cardTipo}>Clase: {item.nombreClase}</Text>
+              <Text style={styles.cardTipo}>Clase: {item.actividad || item.nombreClase || "Clase"}</Text>
             </View>
-            <Text style={styles.cardUsuario}>{item.nombreUsuario || "Usuario"}</Text>
+            <Text style={styles.cardUsuario}>{item.emailUsuario || item.nombreUsuario || "Usuario"}</Text>
             {!!item.diaHora && <Text style={styles.cardDetalle}>{item.diaHora}</Text>}
             {formatFecha(item.fecha) ? <Text style={styles.cardFecha}>{formatFecha(item.fecha)}</Text> : null}
           </View>

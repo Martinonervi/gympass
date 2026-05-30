@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, where } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
 import { CLOUDINARY } from "../cloudinaryConfig";
@@ -95,6 +95,15 @@ function dateAHoraString(date) {
   return `${h}:${m}`;
 }
 
+function horaToMins(horaStr) {
+  const [h, m] = horaStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minsToHora(mins) {
+  return `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
+}
+
 export default function ManageGymDetailsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +115,7 @@ export default function ManageGymDetailsScreen({ navigation }) {
   const [otraActividad, setOtraActividad] = useState("");
   const [planGimnasio, setPlanGimnasio] = useState("classic");
   const [fotos, setFotos] = useState([]);
+  const [clases, setClases] = useState([]);
 
   const [picker, setPicker] = useState({ visible: false, dia: null, campo: null });
   const [tempHora, setTempHora] = useState(new Date());
@@ -127,6 +137,9 @@ export default function ManageGymDetailsScreen({ navigation }) {
             setHorarios({ ...HORARIOS_DEFAULT, ...data.horarios });
           }
         }
+        // Load existing classes to detect cascade deletes when an activity is removed
+        const clasesSnap = await getDocs(collection(db, "gimnasios", user.uid, "clases"));
+        setClases(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (error) {
         Alert.alert("Error", "Hubo un problema al cargar los datos.");
         console.error(error);
@@ -144,18 +157,51 @@ export default function ManageGymDetailsScreen({ navigation }) {
   }
 
   function aplicarHora(dia, campo, horaStr) {
-    if (campo === "abre" && horaStr >= horarios[dia].cierra) {
-      Alert.alert("Horario inválido", "La apertura debe ser antes que el cierre.");
-      return false;
+    const newMins    = horaToMins(horaStr);
+    const abreMins   = horaToMins(horarios[dia].abre);
+    const cierraMins = horaToMins(horarios[dia].cierra);
+
+    if (campo === "abre") {
+      if (newMins >= cierraMins) {
+        // Auto-adjust cierra = abre + 60 min
+        const newCierraMins = newMins + 60;
+        if (newCierraMins > 23 * 60 + 59) {
+          Alert.alert("Horario inválido", "La hora de apertura es demasiado tarde.");
+          return false;
+        }
+        setHorarios((prev) => ({
+          ...prev,
+          [dia]: { ...prev[dia], abre: horaStr, cierra: minsToHora(newCierraMins) },
+        }));
+      } else {
+        setHorarios((prev) => ({
+          ...prev,
+          [dia]: { ...prev[dia], abre: horaStr },
+        }));
+      }
+    } else { // cierra
+      if (newMins === 0) {
+        Alert.alert("Horario inválido", "El cierre no puede ser las 00:00.");
+        return false;
+      }
+      if (newMins <= abreMins) {
+        // Auto-adjust abre = cierra - 60 min
+        const newAbreMins = newMins - 60;
+        if (newAbreMins < 0) {
+          Alert.alert("Horario inválido", "La hora de cierre es demasiado temprana.");
+          return false;
+        }
+        setHorarios((prev) => ({
+          ...prev,
+          [dia]: { ...prev[dia], abre: minsToHora(newAbreMins), cierra: horaStr },
+        }));
+      } else {
+        setHorarios((prev) => ({
+          ...prev,
+          [dia]: { ...prev[dia], cierra: horaStr },
+        }));
+      }
     }
-    if (campo === "cierra" && horaStr <= horarios[dia].abre) {
-      Alert.alert("Horario inválido", "El cierre debe ser después de la apertura.");
-      return false;
-    }
-    setHorarios((prev) => ({
-      ...prev,
-      [dia]: { ...prev[dia], [campo]: horaStr },
-    }));
     return true;
   }
 
@@ -183,8 +229,49 @@ export default function ManageGymDetailsScreen({ navigation }) {
     setHorarios((prev) => ({ ...prev, [dia]: { ...prev[dia], abierto: !prev[dia].abierto } }));
   }
 
+  async function cascadeDeleteClases(claseIds) {
+    const user = auth.currentUser;
+    if (!user || claseIds.length === 0) return;
+    const promises = [];
+    for (const claseId of claseIds) {
+      promises.push(deleteDoc(doc(db, "gimnasios", user.uid, "clases", claseId)));
+      const resSnap = await getDocs(query(
+        collection(db, "reservas"),
+        where("claseId", "==", claseId),
+        where("gymId", "==", user.uid)
+      ));
+      resSnap.docs.forEach((d) => promises.push(deleteDoc(doc(db, "reservas", d.id))));
+    }
+    await Promise.all(promises);
+    setClases((prev) => prev.filter((c) => !claseIds.includes(c.id)));
+  }
+
   function toggleActividad(act) {
-    setActividades((prev) => prev.includes(act) ? prev.filter((a) => a !== act) : [...prev, act]);
+    if (actividades.includes(act)) {
+      // Removing — check if any existing classes use this activity
+      const afectadas = clases.filter((c) => (c.actividad || c.nombre) === act);
+      if (afectadas.length > 0) {
+        Alert.alert(
+          "Eliminar actividad",
+          `Hay ${afectadas.length} clase${afectadas.length !== 1 ? "s" : ""} de "${act}". Al eliminar la actividad se borrarán esas clases y todas sus reservas. ¿Querés continuar?`,
+          [
+            { text: "Cancelar", style: "cancel" },
+            {
+              text: "Eliminar",
+              style: "destructive",
+              onPress: async () => {
+                setActividades((prev) => prev.filter((a) => a !== act));
+                await cascadeDeleteClases(afectadas.map((c) => c.id));
+              },
+            },
+          ]
+        );
+        return;
+      }
+      setActividades((prev) => prev.filter((a) => a !== act));
+    } else {
+      setActividades((prev) => [...prev, act]);
+    }
   }
 
   function toggleComodidad(com) {

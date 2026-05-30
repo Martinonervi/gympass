@@ -14,9 +14,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, doc, getDoc, getDocs, addDoc, setDoc, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, limit, serverTimestamp } from "firebase/firestore";
+import QRCode from "react-native-qrcode-svg";
 import { auth, db } from "../firebaseConfig";
-import { canAccessGym, canAccessClases, PLAN_ORDER } from "../utils/planes";
+import { canAccessGym } from "../utils/planes";
 
 const COLORS = {
   bg: "#0f1520",
@@ -42,9 +43,6 @@ export default function GymDetailScreen({ route, navigation }) {
   const [nombreUsuario, setNombreUsuario] = useState("");
   const [reservando, setReservando] = useState(false);
   const [comprobante, setComprobante] = useState(null);
-  const [inscriptosPorClase, setInscriptosPorClase] = useState({});
-  const [clases, setClases] = useState([]);
-  const [reservandoClaseId, setReservandoClaseId] = useState(null);
   const [resenas, setResenas] = useState([]);
   const [miRating, setMiRating] = useState(0);
   const [miComentario, setMiComentario] = useState("");
@@ -75,18 +73,7 @@ export default function GymDetailScreen({ route, navigation }) {
           setNombreUsuario(nombre || user?.email?.split("@")[0] || "");
         }
 
-        const [clasesSnap, resenasSnap, reservasClasesSnap] = await Promise.all([
-          getDocs(collection(db, "gimnasios", gymId, "clases")),
-          getDocs(collection(db, "gimnasios", gymId, "resenas")),
-          getDocs(query(collection(db, "reservas"), where("gymId", "==", gymId), where("tipo", "==", "clase"))),
-        ]);
-        setClases(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        const counts = {};
-        reservasClasesSnap.docs.forEach((d) => {
-          const cid = d.data().claseId;
-          if (cid) counts[cid] = (counts[cid] || 0) + 1;
-        });
-        setInscriptosPorClase(counts);
+        const resenasSnap = await getDocs(collection(db, "gimnasios", gymId, "resenas"));
         const todasResenas = resenasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setResenas(todasResenas);
         if (user) {
@@ -166,6 +153,7 @@ export default function GymDetailScreen({ route, navigation }) {
       const docRef = await addDoc(collection(db, "reservas"), {
         userId: user.uid,
         nombreUsuario,
+        emailUsuario: user.email || "",
         tipo: "pase",
         gymId,
         nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
@@ -174,6 +162,7 @@ export default function GymDetailScreen({ route, navigation }) {
       });
       setComprobante({
         id: docRef.id,
+        gymId,
         nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "Gimnasio",
         tipo: "pase",
         estado: "pendiente",
@@ -184,91 +173,6 @@ export default function GymDetailScreen({ route, navigation }) {
       Alert.alert("Error", e.message || "No se pudo realizar la reserva. Intentá de nuevo.");
     } finally {
       setReservando(false);
-    }
-  };
-
-  const reservarClase = async (clase) => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    if (!userPlan) {
-      Alert.alert(
-        "Sin plan activo",
-        "Necesitás un plan activo para reservar clases.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
-        ]
-      );
-      return;
-    }
-
-    if (!canAccessClases(userPlan)) {
-      Alert.alert(
-        "Plan insuficiente",
-        "Para reservar clases necesitás el plan Platinum o Black.",
-        [
-          { text: "Cerrar", style: "cancel" },
-          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
-        ]
-      );
-      return;
-    }
-
-    const gymPlan = gymData?.planGimnasio || "classic";
-    if (!canAccessGym(userPlan, gymPlan)) {
-      Alert.alert(
-        "Plan insuficiente",
-        `Este gimnasio requiere el plan ${PLAN_LABELS[gymPlan] || gymPlan} o superior. Tu plan actual es ${PLAN_LABELS[userPlan] || userPlan}.`,
-        [
-          { text: "Cerrar", style: "cancel" },
-          { text: "Ver planes", onPress: () => navigation.navigate("Tabs", { screen: "PassTab" }) },
-        ]
-      );
-      return;
-    }
-
-    setReservandoClaseId(clase.id);
-    try {
-      const reservasSnap = await getDocs(
-        query(
-          collection(db, "reservas"),
-          where("gymId", "==", gymId),
-          where("claseId", "==", clase.id),
-          where("tipo", "==", "clase")
-        )
-      );
-      const reservasClase = reservasSnap.docs.map((d) => d.data());
-
-      const yaTiene = reservasClase.some((r) => r.userId === user.uid);
-      if (yaTiene) {
-        Alert.alert("Ya reservaste", "Ya tenés una reserva para esta clase.");
-        return;
-      }
-
-      if (clase.cupo && reservasClase.length >= clase.cupo) {
-        Alert.alert("Sin lugares", "Esta clase ya no tiene lugares disponibles.");
-        return;
-      }
-
-      await addDoc(collection(db, "reservas"), {
-        userId: user.uid,
-        nombreUsuario,
-        tipo: "clase",
-        gymId,
-        nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
-        claseId: clase.id,
-        nombreClase: clase.actividad || clase.nombre || "",
-        diaHora: clase.diaHora || "",
-        fecha: serverTimestamp(),
-        estado: "pendiente",
-      });
-      Alert.alert("¡Reserva realizada!", `Tu lugar en ${clase.actividad || "la clase"} fue reservado con éxito.`);
-    } catch (e) {
-      console.error("Error reservando clase:", e);
-      Alert.alert("Error", e.message || "No se pudo realizar la reserva.");
-    } finally {
-      setReservandoClaseId(null);
     }
   };
 
@@ -395,6 +299,17 @@ export default function GymDetailScreen({ route, navigation }) {
               </View>
             </View>
 
+            {!!comprobante?.id && (
+              <View style={styles.qrWrap}>
+                <QRCode
+                  value={JSON.stringify({ reservaId: comprobante.id, gymId: comprobante.gymId, tipo: "pase" })}
+                  size={130}
+                  backgroundColor="#152030"
+                  color="#22c55e"
+                />
+              </View>
+            )}
+
             <TouchableOpacity
               style={styles.ticketCloseBtn}
               onPress={() => setComprobante(null)}
@@ -477,6 +392,17 @@ export default function GymDetailScreen({ route, navigation }) {
           )}
         </View>
 
+        {esCliente && (
+          <TouchableOpacity
+            style={styles.calendarButton}
+            onPress={() => navigation.navigate("ClassCalendar", { gymId, gymName: nombre, userPlan, nombreUsuario })}
+          >
+            <MaterialCommunityIcons name="calendar-month-outline" size={20} color={COLORS.green} />
+            <Text style={styles.calendarButtonText}>Ver clases disponibles</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.green} />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Descripción</Text>
           <Text style={styles.sectionContent}>{descripcion || "No especificado"}</Text>
@@ -533,64 +459,6 @@ export default function GymDetailScreen({ route, navigation }) {
             ) : (
               <Text style={styles.sectionContent}>{gymData.comodidades}</Text>
             )}
-          </View>
-        )}
-
-        {clases.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Clases</Text>
-            {clases.map((clase) => {
-              const puedeReservar = esCliente && canAccessClases(userPlan);
-              const estaReservando = reservandoClaseId === clase.id;
-              const inscriptos = inscriptosPorClase[clase.id] || 0;
-              const sinLugares = clase.cupo && inscriptos >= clase.cupo;
-              return (
-                <View key={clase.id} style={styles.claseCard}>
-                  <View style={styles.claseHeader}>
-                    <View style={styles.activityChip}>
-                      <Text style={styles.activityChipText}>{clase.actividad || clase.nombre}</Text>
-                    </View>
-                    {clase.cupo ? (
-                      <View style={[styles.claseCupoBadge, sinLugares && styles.claseCupoBadgeLleno]}>
-                        <Text style={[styles.claseCupo, sinLugares && styles.claseCupoLleno]}>
-                          {inscriptos}/{clase.cupo} inscriptos
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.claseHorario}>{clase.diaHora || "Horario no especificado"}</Text>
-                  {clase.duracion > 0 && (
-                    <Text style={styles.claseMeta}>{clase.duracion} min</Text>
-                  )}
-                  {!!clase.profesor && (
-                    <Text style={styles.claseMeta}>Prof. {clase.profesor}</Text>
-                  )}
-                  {!!clase.descripcion && (
-                    <Text style={styles.claseDesc}>{clase.descripcion}</Text>
-                  )}
-                  {esCliente && (
-                    <TouchableOpacity
-                      style={[
-                        styles.claseReservarBtn,
-                        !puedeReservar && styles.claseReservarBtnLocked,
-                        estaReservando && styles.claseReservarBtnDisabled,
-                      ]}
-                      onPress={() => reservarClase(clase)}
-                      disabled={estaReservando}
-                    >
-                      <MaterialCommunityIcons
-                        name={puedeReservar ? "account-plus-outline" : "lock-outline"}
-                        size={16}
-                        color="#fff"
-                      />
-                      <Text style={styles.claseReservarBtnText}>
-                        {estaReservando ? "Reservando..." : puedeReservar ? "Reservar lugar" : "Requiere plan Platinum"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
           </View>
         )}
 
@@ -776,6 +644,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.green,
   },
   mapButtonText: { color: COLORS.green, fontSize: 14, fontWeight: "600" },
+  calendarButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  calendarButtonText: { color: COLORS.green, fontSize: 15, fontWeight: "700", flex: 1 },
 
   section: { marginBottom: 24 },
   sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
@@ -1077,5 +958,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  qrWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
 });

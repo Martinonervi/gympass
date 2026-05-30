@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { collection, getDocs, doc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -56,7 +56,7 @@ export default function ManageClassesScreen({ navigation }) {
     const displayName = clase.actividad || clase.nombre || "esta clase";
     Alert.alert(
       "Eliminar clase",
-      `¿Seguro que querés eliminar la clase de "${displayName}"?`,
+      `¿Seguro que querés eliminar la clase de "${displayName}"? Se borrarán también todas las reservas de los alumnos inscriptos.`,
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Eliminar", style: "destructive", onPress: () => handleDelete(clase.id) },
@@ -68,7 +68,16 @@ export default function ManageClassesScreen({ navigation }) {
     const user = auth.currentUser;
     if (!user) return;
     try {
-      await deleteDoc(doc(db, "gimnasios", user.uid, "clases", claseId));
+      // Delete all reservations for this class across all dates
+      const resSnap = await getDocs(query(
+        collection(db, "reservas"),
+        where("claseId", "==", claseId),
+        where("gymId", "==", user.uid)
+      ));
+      const deletePromises = resSnap.docs.map((d) => deleteDoc(doc(db, "reservas", d.id)));
+      // Delete the class template itself
+      deletePromises.push(deleteDoc(doc(db, "gimnasios", user.uid, "clases", claseId)));
+      await Promise.all(deletePromises);
       setClases((prev) => prev.filter((c) => c.id !== claseId));
     } catch (error) {
       console.log("Delete class error:", error?.code || error?.message || error);
