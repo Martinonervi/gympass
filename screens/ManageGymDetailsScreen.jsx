@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, addDoc, query, where, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
 import { CLOUDINARY } from "../cloudinaryConfig";
@@ -240,7 +240,25 @@ export default function ManageGymDetailsScreen({ navigation }) {
         where("claseId", "==", claseId),
         where("gymId", "==", user.uid)
       ));
-      resSnap.docs.forEach((d) => promises.push(deleteDoc(doc(db, "reservas", d.id))));
+      const clase = clases.find((c) => c.id === claseId);
+      const nombreClase = clase?.actividad || clase?.nombre || "la clase";
+      const horario = clase?.diaHora || "";
+      for (const d of resSnap.docs) {
+        promises.push(deleteDoc(doc(db, "reservas", d.id)));
+        const { userId } = d.data();
+        if (userId) {
+          promises.push(addDoc(
+            collection(db, "usuarios", userId, "notificaciones"),
+            {
+              tipo: "clase_cancelada",
+              titulo: "Clase cancelada",
+              mensaje: `La clase de ${nombreClase}${horario ? ` (${horario})` : ""} fue cancelada por el gimnasio.`,
+              leida: false,
+              creadoEn: serverTimestamp(),
+            }
+          ));
+        }
+      }
     }
     await Promise.all(promises);
     setClases((prev) => prev.filter((c) => !claseIds.includes(c.id)));

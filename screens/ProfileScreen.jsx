@@ -211,6 +211,7 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
       await addDoc(collection(db, coleccion), {
         uid: user?.uid || null,
         email: email || null,
+        ...(rol === "gimnasio" && user?.uid ? { gymId: user.uid } : {}),
         mensaje: reportText.trim(),
         creadoEn: serverTimestamp(),
         leido: false,

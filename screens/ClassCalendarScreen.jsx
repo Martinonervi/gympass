@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, StyleSheet, StatusBar, ScrollView,
   TouchableOpacity, ActivityIndicator, Alert, Animated,
@@ -134,30 +135,32 @@ export default function ClassCalendarScreen({ route, navigation }) {
   const canEnroll = userPlan === "platinum" || userPlan === "black";
   const user      = auth.currentUser;
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        // Class templates
-        const clasesSnap = await getDocs(
-          collection(db, "gimnasios", gymId, "clases")
-        );
-        setTemplates(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-
-        // All class reservations for this gym (filter tipo client-side)
-        const resSnap = await getDocs(query(
-          collection(db, "reservas"),
-          where("gymId", "==", gymId),
-          where("tipo", "==", "clase")
-        ));
-        setReservas(resSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (e) {
-        console.error("ClassCalendar fetchData:", e);
-      } finally {
-        setLoading(false);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function fetchData() {
+        try {
+          const clasesSnap = await getDocs(
+            collection(db, "gimnasios", gymId, "clases")
+          );
+          const resSnap = await getDocs(query(
+            collection(db, "reservas"),
+            where("gymId", "==", gymId),
+            where("tipo", "==", "clase")
+          ));
+          if (!active) return;
+          setTemplates(clasesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          setReservas(resSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        } catch (e) {
+          console.error("ClassCalendar fetchData:", e);
+        } finally {
+          if (active) setLoading(false);
+        }
       }
-    }
-    fetchData();
-  }, [gymId]);
+      fetchData();
+      return () => { active = false; };
+    }, [gymId])
+  );
 
   async function handleEnroll(instance) {
     if (!user) return;

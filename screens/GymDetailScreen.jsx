@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from "firebase/firestore";
 import QRCode from "react-native-qrcode-svg";
 import { auth, db } from "../firebaseConfig";
 import { canAccessGym } from "../utils/planes";
@@ -149,15 +149,10 @@ export default function GymDetailScreen({ route, navigation }) {
         const snap = await getDocs(query(
           collection(db, "reservas"),
           where("userId", "==", user.uid),
-          where("tipo", "==", "pase"),
-          limit(100)
+          where("tipo", "==", "pase")
         ));
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-        const hasPassToday = snap.docs.some((d) => {
-          const fecha = d.data().fecha?.toDate?.();
-          return fecha && fecha >= today && fecha < tomorrow;
-        });
+        const todayISO = new Date().toISOString().slice(0, 10);
+        const hasPassToday = snap.docs.some((d) => d.data().fechaISO === todayISO);
         if (hasPassToday) {
           Alert.alert("Límite diario alcanzado", "Solo podés usar 1 pase por día. Ya usaste tu pase de hoy.");
           return;
@@ -173,6 +168,7 @@ export default function GymDetailScreen({ route, navigation }) {
         gymId,
         nombreGimnasio: gymData?.nombreGimnasio || gymData?.nombre || "",
         fecha: serverTimestamp(),
+        fechaISO: new Date().toISOString().slice(0, 10),
         estado: "pendiente",
       });
       setComprobante({

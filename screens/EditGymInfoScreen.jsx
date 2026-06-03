@@ -177,21 +177,20 @@ export default function EditGymInfoScreen({ navigation }) {
       return;
     }
 
+    if (!direccion.trim()) {
+      showSnackbar("La dirección es obligatoria para mostrar el gym en el mapa.");
+      return;
+    }
+
     setSaving(true);
     try {
       const gymRef = doc(db, "gimnasios", user.uid);
 
       let coords = null;
-
-      if (direccion.trim()) {
-        try {
-          coords = await getCoordinates(direccion);
-        } catch (e) {
-          console.log("Error geocoding:", e.message);
-        }
-      } else{
-        showSnackbar("La dirección es obligatoria para mostrar el gym en el mapa.");
-        return;
+      try {
+        coords = await getCoordinates(direccion);
+      } catch (e) {
+        console.log("Error geocoding:", e.message);
       }
 
       await setDoc(

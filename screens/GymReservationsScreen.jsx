@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -176,11 +176,6 @@ export default function GymReservationsScreen({ navigation }) {
         }
         return false;
       };
-
-      const deletePromises = snap.docs
-        .filter((d) => isExpired(d.data()))
-        .map((d) => deleteDoc(doc(db, "reservas", d.id)));
-      if (deletePromises.length > 0) await Promise.all(deletePromises);
 
       const data = snap.docs
         .filter((d) => !isExpired(d.data()))

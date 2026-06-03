@@ -134,11 +134,6 @@ export default function HomeScreen() {
             return false;
           };
 
-          // Fire-and-forget deletion of expired docs (don't block the UI)
-          reservasSnap.docs
-            .filter(d => isExpiredRes(d.data()))
-            .forEach(d => deleteDoc(doc(db, 'reservas', d.id)).catch(() => {}));
-
           if (active) {
             const lista = reservasSnap.docs
               .filter(d => !isExpiredRes(d.data()))
