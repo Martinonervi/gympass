@@ -9,6 +9,7 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -94,8 +95,9 @@ function useSnackbar() {
 
 // ─── PassScreen ───────────────────────────────────────────────────────────────
 export default function PassScreen() {
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [saving,  setSaving]      = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [planActivo, setPlanActivo] = useState(null);
   const { snackbar, showSnackbar }  = useSnackbar();
 
@@ -189,7 +191,17 @@ export default function PassScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await fetchPlan(); setRefreshing(false); }}
+            tintColor={COLORS.green}
+            colors={[COLORS.green]}
+          />
+        }
+      >
         <Text style={styles.title}>Mi Pase</Text>
 
         {/* ── Active plan card ── */}

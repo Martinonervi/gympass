@@ -294,23 +294,13 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
           </TouchableOpacity>
         </View>
 
-        {rol === "usuario" && (
+        {(rol === "usuario" || rol === "gimnasio") && (
           <TouchableOpacity
             style={styles.reportButton}
             onPress={() => setReportModalVisible(true)}
           >
             <Text style={styles.reportButtonIcon}>⚑</Text>
-            <Text style={styles.reportButtonText}>Reportar un problema</Text>
-          </TouchableOpacity>
-        )}
-
-        {rol === "gimnasio" && (
-          <TouchableOpacity
-            style={styles.reportButton}
-            onPress={() => setReportModalVisible(true)}
-          >
-            <Text style={styles.reportButtonIcon}>⚑</Text>
-            <Text style={styles.reportButtonText}>Reportar un problema</Text>
+            <Text style={styles.reportButtonText}>Soporte de aplicación</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

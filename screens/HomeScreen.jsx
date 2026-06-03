@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal,
+  StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, limit } from 'firebase/firestore';
@@ -65,6 +65,7 @@ export default function HomeScreen() {
   const [feedbackPendiente, setFeedbackPendiente] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
@@ -167,6 +168,58 @@ export default function HomeScreen() {
       return () => { active = false; };
     }, [])
   );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const [snap, reservasSnap, notifSnap] = await Promise.all([
+        getDoc(doc(db, 'usuarios', user.uid)),
+        getDocs(query(collection(db, 'reservas'), where('userId', '==', user.uid), limit(50))),
+        getDocs(query(collection(db, 'usuarios', user.uid, 'notificaciones'), orderBy('creadoEn', 'desc'), limit(30))),
+      ]);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        setPlanId(data.plan || null);
+        const nombre = (data.nombre || data.apellido)
+          ? `${data.nombre || ''} ${data.apellido || ''}`.trim()
+          : (user.email || '').split('@')[0];
+        setNombreUsuario(nombre);
+      }
+
+      const now = new Date();
+      const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+      const todayStr = now.toISOString().slice(0, 10);
+      const isExpiredRes = (r) => {
+        if (r.tipo === 'pase') return r.fecha?.seconds ? new Date(r.fecha.seconds * 1000) < todayMidnight : false;
+        if (r.tipo === 'clase') {
+          if (!r.claseFecha) return false;
+          if (r.claseFecha < todayStr) return true;
+          if (r.claseFecha === todayStr && r.horaFin) {
+            const [h, m] = r.horaFin.split(':').map(Number);
+            const [y, mo, d] = todayStr.split('-').map(Number);
+            return new Date(y, mo - 1, d, h, m, 0, 0) <= now;
+          }
+        }
+        return false;
+      };
+      const lista = reservasSnap.docs
+        .filter(d => !isExpiredRes(d.data()))
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
+      setReservas(lista);
+      setFeedbackPendiente(lista.filter(r => r.estado === 'usado' && !r.feedbackDado));
+
+      setNotificaciones(notifSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.log('HomeScreen refresh error:', e?.code, e?.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const planData = planId ? PLANES[planId] : null;
 
@@ -387,8 +440,16 @@ export default function HomeScreen() {
               ) : null}
               <View style={styles.ticketRow}>
                 <Text style={styles.ticketLabel}>Estado</Text>
-                <View style={styles.ticketEstadoBadge}>
-                  <Text style={styles.ticketEstadoText}>Activo</Text>
+                <View style={[
+                  styles.ticketEstadoBadge,
+                  comprobante?.estado === 'usado' && styles.ticketEstadoBadgeUsado,
+                ]}>
+                  <Text style={[
+                    styles.ticketEstadoText,
+                    comprobante?.estado === 'usado' && styles.ticketEstadoTextUsado,
+                  ]}>
+                    {comprobante?.estado === 'usado' ? 'Usado' : 'Activo'}
+                  </Text>
                 </View>
               </View>
               <View style={[styles.ticketRow, { marginTop: 8 }]}>
@@ -423,6 +484,9 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.green} colors={[COLORS.green]} />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1028,6 +1092,13 @@ ticketEstadoText: {
   color: '#22c55e',
   fontSize: 12,
   fontWeight: '700',
+},
+ticketEstadoBadgeUsado: {
+  backgroundColor: '#2e0a0a',
+  borderColor: '#ef4444',
+},
+ticketEstadoTextUsado: {
+  color: '#ef4444',
 },
 ticketCode: {
   color: COLORS.green,

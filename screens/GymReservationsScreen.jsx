@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -130,67 +131,74 @@ function ClaseGroup({ group }) {
 }
 
 export default function GymReservationsScreen({ navigation }) {
-  const [reservas, setReservas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reservas, setReservas]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("todos");
 
-  useEffect(() => {
-    const fetchReservas = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return;
-        const snap = await getDocs(
-          query(collection(db, "reservas"), where("gymId", "==", user.uid))
-        );
+  const fetchReservas = async ({ isRefresh = false } = {}) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const snap = await getDocs(
+        query(collection(db, "reservas"), where("gymId", "==", user.uid))
+      );
 
-        const now = new Date();
-        const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-        const todayStr = now.toISOString().slice(0, 10);
+      const now = new Date();
+      const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+      const todayStr = now.toISOString().slice(0, 10);
 
-        // Returns true when a reservation should be purged
-        const isExpired = (r) => {
-          if (r.tipo === "pase") {
-            // Pase is valid only for the calendar day it was created; expires at midnight
-            if (!r.fecha?.seconds) return false;
-            return new Date(r.fecha.seconds * 1000) < todayMidnight;
-          }
-          if (r.tipo === "clase") {
-            if (!r.claseFecha) return false;
-            if (r.claseFecha < todayStr) return true; // strictly past date
-            if (r.claseFecha === todayStr && r.horaFin) {
-              // Same day: expire once the class end-time has passed
-              const [h, m] = r.horaFin.split(":").map(Number);
-              const [y, mo, d] = todayStr.split("-").map(Number);
-              return new Date(y, mo - 1, d, h, m, 0, 0) <= now;
-            }
-            return false;
+      const isExpired = (r) => {
+        if (r.tipo === "pase") {
+          if (!r.fecha?.seconds) return false;
+          return new Date(r.fecha.seconds * 1000) < todayMidnight;
+        }
+        if (r.tipo === "clase") {
+          if (!r.claseFecha) return false;
+          if (r.claseFecha < todayStr) return true;
+          if (r.claseFecha === todayStr && r.horaFin) {
+            const [h, m] = r.horaFin.split(":").map(Number);
+            const [y, mo, d] = todayStr.split("-").map(Number);
+            return new Date(y, mo - 1, d, h, m, 0, 0) <= now;
           }
           return false;
-        };
+        }
+        return false;
+      };
 
-        // Delete all expired reservations from Firestore
-        const deletePromises = snap.docs
-          .filter((d) => isExpired(d.data()))
-          .map((d) => deleteDoc(doc(db, "reservas", d.id)));
-        if (deletePromises.length > 0) await Promise.all(deletePromises);
+      const deletePromises = snap.docs
+        .filter((d) => isExpired(d.data()))
+        .map((d) => deleteDoc(doc(db, "reservas", d.id)));
+      if (deletePromises.length > 0) await Promise.all(deletePromises);
 
-        // Keep only live reservations
-        const data = snap.docs
-          .filter((d) => !isExpired(d.data()))
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
-        setReservas(data);
-      } catch (e) {
-        console.error("Error cargando reservas:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReservas();
-  }, []);
+      const data = snap.docs
+        .filter((d) => !isExpired(d.data()))
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
+      setReservas(data);
+    } catch (e) {
+      console.error("Error cargando reservas:", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchReservas(); }, []);
 
   const pases  = reservas.filter((r) => r.tipo === "pase");
   const clases = reservas.filter((r) => r.tipo === "clase");
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => fetchReservas({ isRefresh: true })}
+      tintColor={COLORS.green}
+      colors={[COLORS.green]}
+    />
+  );
 
   const renderTodos = () => (
     <FlatList
@@ -198,6 +206,7 @@ export default function GymReservationsScreen({ navigation }) {
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       ListEmptyComponent={<EmptyState />}
+      refreshControl={refreshControl}
       renderItem={({ item }) =>
         item.tipo === "clase" ? (
           <View style={styles.card}>
@@ -222,6 +231,7 @@ export default function GymReservationsScreen({ navigation }) {
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       ListEmptyComponent={<EmptyState mensaje="No hay pases reservados." />}
+      refreshControl={refreshControl}
       renderItem={({ item }) => <PaseCard item={item} />}
     />
   );
@@ -229,12 +239,12 @@ export default function GymReservationsScreen({ navigation }) {
   const renderClases = () => {
     const grupos = groupByClase(clases);
     if (grupos.length === 0) return (
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={styles.list} refreshControl={refreshControl}>
         <EmptyState mensaje="No hay reservas de clases." />
       </ScrollView>
     );
     return (
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={styles.list} refreshControl={refreshControl}>
         {grupos.map((g) => <ClaseGroup key={g.key} group={g} />)}
       </ScrollView>
     );

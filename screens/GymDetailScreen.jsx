@@ -11,6 +11,9 @@ import {
   Alert,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -49,9 +52,12 @@ export default function GymDetailScreen({ route, navigation }) {
   const [tieneResena, setTieneResena] = useState(false);
   const [editandoResena, setEditandoResena] = useState(false);
   const [guardandoResena, setGuardandoResena] = useState(false);
+  const [reporteModalVisible, setReporteModalVisible] = useState(false);
+  const [reporteTexto, setReporteTexto] = useState("");
+  const [enviandoReporte, setEnviandoReporte] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function fetchData() {
+  const fetchData = async () => {
       try {
         const user = auth.currentUser;
         const gymDocRef = doc(db, "gimnasios", gymId);
@@ -84,15 +90,15 @@ export default function GymDetailScreen({ route, navigation }) {
             setTieneResena(true);
           }
         }
-      } catch (error) {
-        console.error("Error fetching gym details:", error);
-      } finally {
-        setLoading(false);
-      }
+    } catch (error) {
+      console.error("Error fetching gym details:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
 
-    if (gymId) fetchData();
-  }, [gymId]);
+  useEffect(() => { if (gymId) fetchData(); }, [gymId]);
 
   const reservarPase = async () => {
     const user = auth.currentUser;
@@ -247,6 +253,31 @@ export default function GymDetailScreen({ route, navigation }) {
     });
   };
 
+  const handleEnviarReporte = async () => {
+    if (!reporteTexto.trim()) return;
+    setEnviandoReporte(true);
+    try {
+      const user = auth.currentUser;
+      await addDoc(collection(db, "reportes_gimnasios"), {
+        gymId,
+        nombreGimnasio: gymData?.nombreGimnasio || "",
+        uid: user?.uid || null,
+        email: user?.email || null,
+        mensaje: reporteTexto.trim(),
+        creadoEn: serverTimestamp(),
+        leido: false,
+      });
+      setReporteModalVisible(false);
+      setReporteTexto("");
+      Alert.alert("Reporte enviado", "Gracias por tu reporte. El gimnasio lo revisará a la brevedad.");
+    } catch (e) {
+      console.error("Error enviando reporte de gym:", e);
+      Alert.alert("Error", "No se pudo enviar el reporte. Intentá de nuevo.");
+    } finally {
+      setEnviandoReporte(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
@@ -320,7 +351,17 @@ export default function GymDetailScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchData(); }}
+            tintColor={COLORS.green}
+            colors={[COLORS.green]}
+          />
+        }
+      >
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
           <Text style={styles.back}>Volver</Text>
@@ -581,7 +622,69 @@ export default function GymDetailScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* Botón reportar problema */}
+        {userRole === "usuario" && (
+          <TouchableOpacity
+            style={styles.reportarBtn}
+            onPress={() => setReporteModalVisible(true)}
+          >
+            <MaterialCommunityIcons name="flag-outline" size={16} color={COLORS.error} />
+            <Text style={styles.reportarBtnText}>Reportar un problema con este gimnasio</Text>
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
+
+      {/* Modal reporte de gym */}
+      <Modal
+        visible={reporteModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReporteModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.reporteOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.reporteCard}>
+            <Text style={styles.reporteTitulo}>Reportar un problema</Text>
+            <Text style={styles.reporteSubtitulo}>
+              Describí el problema con <Text style={{ color: COLORS.text, fontWeight: "700" }}>{gymData?.nombreGimnasio}</Text>. El gimnasio recibirá tu reporte.
+            </Text>
+            <TextInput
+              style={styles.reporteInput}
+              value={reporteTexto}
+              onChangeText={setReporteTexto}
+              placeholder="Describí el problema acá..."
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              maxLength={1000}
+            />
+            <Text style={styles.reporteCharCount}>{reporteTexto.length}/1000</Text>
+            <View style={styles.reporteActions}>
+              <TouchableOpacity
+                style={styles.reporteCancelarBtn}
+                onPress={() => { setReporteModalVisible(false); setReporteTexto(""); }}
+              >
+                <Text style={styles.reporteCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reporteEnviarBtn, (!reporteTexto.trim() || enviandoReporte) && styles.reporteEnviarBtnDisabled]}
+                onPress={handleEnviarReporte}
+                disabled={!reporteTexto.trim() || enviandoReporte}
+              >
+                {enviandoReporte ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.reporteEnviarText}>Enviar reporte</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -966,4 +1069,60 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
+
+  reportarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 24,
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  reportarBtnText: { color: COLORS.error, fontSize: 13, fontWeight: "600" },
+
+  reporteOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  reporteCard: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  reporteTitulo: { color: COLORS.text, fontSize: 18, fontWeight: "800", marginBottom: 6 },
+  reporteSubtitulo: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  reporteInput: {
+    backgroundColor: "#0f1520",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 14,
+    color: COLORS.text,
+    fontSize: 14,
+    minHeight: 110,
+    textAlignVertical: "top",
+  },
+  reporteCharCount: { color: COLORS.textMuted, fontSize: 11, textAlign: "right", marginTop: 4, marginBottom: 14 },
+  reporteActions: { flexDirection: "row", gap: 10 },
+  reporteCancelarBtn: {
+    flex: 1, paddingVertical: 13,
+    alignItems: "center", borderRadius: 12,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  reporteCancelarText: { color: COLORS.textMuted, fontSize: 14, fontWeight: "600" },
+  reporteEnviarBtn: {
+    flex: 2, backgroundColor: COLORS.error,
+    paddingVertical: 13, alignItems: "center",
+    borderRadius: 12,
+  },
+  reporteEnviarBtnDisabled: { opacity: 0.4 },
+  reporteEnviarText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });

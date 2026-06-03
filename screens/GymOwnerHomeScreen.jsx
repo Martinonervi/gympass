@@ -96,10 +96,24 @@ export default function GymOwnerHomeScreen({ navigation }) {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, { marginBottom: 12 }]}
+        onPress={() => navigation.navigate("GymReports")}
+      >
+        <Text style={styles.buttonText}>Reportes de usuarios</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, { marginBottom: 12 }]}
         onPress={() => navigation.navigate("QRScanner")}
       >
         <Text style={styles.buttonText}>Validar QR</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate("CodeValidator")}
+      >
+        <Text style={styles.buttonText}>Validar código de acceso</Text>
       </TouchableOpacity>
     </View>
   );
