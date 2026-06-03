@@ -31,6 +31,15 @@ function formatFecha(ts) {
   });
 }
 
+function RefreshBanner() {
+  return (
+    <View style={{ backgroundColor: "#22c55e", flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, gap: 8 }}>
+      <ActivityIndicator color="#0f1520" size="small" />
+      <Text style={{ color: '#0f1520', fontSize: 13, fontWeight: '700' }}>Actualizando...</Text>
+    </View>
+  );
+}
+
 export default function GymReportsScreen({ navigation }) {
   const [reportes, setReportes]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -71,6 +80,7 @@ export default function GymReportsScreen({ navigation }) {
           <Text style={styles.count}>{reportes.length} reporte{reportes.length !== 1 ? "s" : ""}</Text>
         )}
       </View>
+      {refreshing && <RefreshBanner />}
 
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 40 }} />
@@ -89,7 +99,8 @@ export default function GymReportsScreen({ navigation }) {
               refreshing={refreshing}
               onRefresh={() => fetchReportes({ isRefresh: true })}
               tintColor={COLORS.green}
-              colors={[COLORS.green]}
+              progressBackgroundColor="#22c55e"
+              colors={["#0f1520"]}
             />
           }
           renderItem={({ item }) => (

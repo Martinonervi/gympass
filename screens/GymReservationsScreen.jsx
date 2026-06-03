@@ -130,6 +130,15 @@ function ClaseGroup({ group }) {
   );
 }
 
+function RefreshBanner() {
+  return (
+    <View style={{ backgroundColor: "#22c55e", flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, gap: 8 }}>
+      <ActivityIndicator color="#0f1520" size="small" />
+      <Text style={{ color: '#0f1520', fontSize: 13, fontWeight: '700' }}>Actualizando...</Text>
+    </View>
+  );
+}
+
 export default function GymReservationsScreen({ navigation }) {
   const [reservas, setReservas]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -264,6 +273,7 @@ export default function GymReservationsScreen({ navigation }) {
       </View>
 
       <TabBar active={activeTab} onChange={setActiveTab} />
+      {refreshing && <RefreshBanner />}
 
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 40 }} />

@@ -93,6 +93,15 @@ function useSnackbar() {
   return { snackbar, showSnackbar };
 }
 
+function RefreshBanner() {
+  return (
+    <View style={{ backgroundColor: COLORS.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, gap: 8 }}>
+      <ActivityIndicator color="#0f1520" size="small" />
+      <Text style={{ color: '#0f1520', fontSize: 13, fontWeight: '700' }}>Actualizando...</Text>
+    </View>
+  );
+}
+
 // ─── PassScreen ───────────────────────────────────────────────────────────────
 export default function PassScreen() {
   const [loading, setLoading]     = useState(true);
@@ -190,7 +199,7 @@ export default function PassScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-
+      {refreshing && <RefreshBanner />}
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={

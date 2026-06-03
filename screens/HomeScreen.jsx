@@ -53,6 +53,15 @@ const OCCUPANCY = [
   { label: 'Muy lleno', emoji: '😰', color: '#3a1010' },
 ];
 
+function RefreshBanner() {
+  return (
+    <View style={{ backgroundColor: COLORS.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, gap: 8 }}>
+      <ActivityIndicator color="#0f1520" size="small" />
+      <Text style={{ color: '#0f1520', fontSize: 13, fontWeight: '700' }}>Actualizando...</Text>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [selectedOccupancy, setSelectedOccupancy] = useState(null);
@@ -438,29 +447,33 @@ export default function HomeScreen() {
                   <Text style={styles.ticketValue}>{fechaComp}</Text>
                 </View>
               ) : null}
-              <View style={styles.ticketRow}>
-                <Text style={styles.ticketLabel}>Estado</Text>
-                <View style={[
-                  styles.ticketEstadoBadge,
-                  comprobante?.estado === 'usado' && styles.ticketEstadoBadgeUsado,
-                ]}>
-                  <Text style={[
-                    styles.ticketEstadoText,
-                    comprobante?.estado === 'usado' && styles.ticketEstadoTextUsado,
+              {!esClaseComp && (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Estado</Text>
+                  <View style={[
+                    styles.ticketEstadoBadge,
+                    comprobante?.estado === 'usado' && styles.ticketEstadoBadgeUsado,
                   ]}>
-                    {comprobante?.estado === 'usado' ? 'Usado' : 'Activo'}
+                    <Text style={[
+                      styles.ticketEstadoText,
+                      comprobante?.estado === 'usado' && styles.ticketEstadoTextUsado,
+                    ]}>
+                      {comprobante?.estado === 'usado' ? 'Usado' : 'Activo'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {!esClaseComp && (
+                <View style={[styles.ticketRow, { marginTop: 8 }]}>
+                  <Text style={styles.ticketLabel}>Código</Text>
+                  <Text style={styles.ticketCode}>
+                    #{comprobante?.id?.slice(-8).toUpperCase()}
                   </Text>
                 </View>
-              </View>
-              <View style={[styles.ticketRow, { marginTop: 8 }]}>
-                <Text style={styles.ticketLabel}>Código</Text>
-                <Text style={styles.ticketCode}>
-                  #{comprobante?.id?.slice(-8).toUpperCase()}
-                </Text>
-              </View>
+              )}
             </View>
 
-            {!!comprobante?.id && (
+            {!!comprobante?.id && !esClaseComp && (
               <View style={styles.qrWrap}>
                 <QRCode
                   value={JSON.stringify({ reservaId: comprobante.id, gymId: comprobante.gymId, tipo: comprobante.tipo || 'pase' })}
@@ -468,6 +481,15 @@ export default function HomeScreen() {
                   backgroundColor="#152030"
                   color="#22c55e"
                 />
+              </View>
+            )}
+
+            {esClaseComp && (
+              <View style={styles.ticketRecordatorio}>
+                <MaterialCommunityIcons name="information-outline" size={15} color="#f59e0b" />
+                <Text style={styles.ticketRecordatorioText}>
+                  No te olvides de reservar un pase para ingresar al gimnasio.
+                </Text>
               </View>
             )}
 
@@ -480,6 +502,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      {refreshing && <RefreshBanner />}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -612,10 +635,10 @@ export default function HomeScreen() {
           })
         )}
 
-        {/* Feedback ocupación — only shown when there's a validated reservation pending feedback */}
-        {feedbackPendiente.length > 0 && (() => {
-          const fb = feedbackPendiente[0];
-          const esClaseFb = fb.tipo === 'clase';
+        {/* Feedback ocupación — only shown for validated pase reservations */}
+        {feedbackPendiente.filter(r => r.tipo !== 'clase').length > 0 && (() => {
+          const fb = feedbackPendiente.filter(r => r.tipo !== 'clase')[0];
+          const esClaseFb = false;
           return (
             <View style={styles.feedbackCard}>
               <View style={styles.fbHeader}>
@@ -1105,6 +1128,24 @@ ticketCode: {
   fontSize: 16,
   fontWeight: '800',
   letterSpacing: 2,
+},
+ticketRecordatorio: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  gap: 8,
+  marginHorizontal: 24,
+  marginBottom: 16,
+  backgroundColor: '#2a1f00',
+  borderWidth: 1,
+  borderColor: '#f59e0b',
+  borderRadius: 10,
+  padding: 12,
+},
+ticketRecordatorioText: {
+  color: '#f59e0b',
+  fontSize: 13,
+  lineHeight: 18,
+  flex: 1,
 },
 ticketCloseBtn: {
   margin: 24,

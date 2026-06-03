@@ -36,6 +36,15 @@ const COLORS = {
 const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
 const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
 
+function RefreshBanner() {
+  return (
+    <View style={{ backgroundColor: "#22c55e", flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, gap: 8 }}>
+      <ActivityIndicator color="#0f1520" size="small" />
+      <Text style={{ color: '#0f1520', fontSize: 13, fontWeight: '700' }}>Actualizando...</Text>
+    </View>
+  );
+}
+
 export default function GymDetailScreen({ route, navigation }) {
   const { gymId } = route.params;
 
@@ -281,6 +290,7 @@ export default function GymDetailScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+      {refreshing && <RefreshBanner />}
 
       <Modal
         visible={!!comprobante}
