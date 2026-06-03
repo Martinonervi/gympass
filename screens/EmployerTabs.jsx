@@ -44,7 +44,7 @@ export default function EmployerTabs({ theme, setIsSignedIn }) {
         }}
       >
         {(props) => (
-          <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} />
+          <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} userRole="empleador" />
         )}
       </Tab.Screen>
     </Tab.Navigator>

@@ -118,12 +118,15 @@ function useSnackbar() {
 //   - gimnasio  → EditGymInfo
 //   - empleador → EditEmployerInfo
 //
-export default function ProfileScreen({ setIsSignedIn }) {
+export default function ProfileScreen({ setIsSignedIn, userRole }) {
   const [loading, setLoading] = useState(true);
   const { snackbar, showSnackbar } = useSnackbar();
   const navigation = useNavigation();
 
-  const [rol, setRol] = useState("");
+  // Seed rol immediately from the prop so goToEditInfo() works even before
+  // the Firestore fetch completes. The useEffect still syncs email and will
+  // confirm (or override) the role once the fetch resolves.
+  const [rol, setRol] = useState(userRole || "");
   const [email, setEmail] = useState("");
 
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -212,6 +215,16 @@ export default function ProfileScreen({ setIsSignedIn }) {
         creadoEn: serverTimestamp(),
         leido: false,
       });
+      // Send a support acknowledgment notification to the user
+      if (user?.uid) {
+        await addDoc(collection(db, "usuarios", user.uid, "notificaciones"), {
+          tipo: "soporte",
+          titulo: "Reporte recibido ✓",
+          mensaje: "Recibimos tu reporte. Nuestro equipo de soporte revisará tu situación y se comunicará con vos a la brevedad. ¡Gracias por ayudarnos a mejorar!",
+          leida: false,
+          creadoEn: serverTimestamp(),
+        });
+      }
       setReportModalVisible(false);
       setReportText("");
       showSnackbar("Reporte enviado con éxito. ¡Gracias!", "success");

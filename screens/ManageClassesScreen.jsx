@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc, addDoc, serverTimestamp, query, orderBy, where } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const COLORS = {
@@ -74,10 +74,33 @@ export default function ManageClassesScreen({ navigation }) {
         where("claseId", "==", claseId),
         where("gymId", "==", user.uid)
       ));
-      const deletePromises = resSnap.docs.map((d) => deleteDoc(doc(db, "reservas", d.id)));
+
+      const clase = clases.find((c) => c.id === claseId);
+      const nombreClase = clase?.actividad || clase?.nombre || "la clase";
+      const horario = clase?.diaHora || "";
+
+      const promises = [];
+      for (const d of resSnap.docs) {
+        // Delete the reservation
+        promises.push(deleteDoc(doc(db, "reservas", d.id)));
+        // Notify the enrolled user
+        const { userId } = d.data();
+        if (userId) {
+          promises.push(addDoc(
+            collection(db, "usuarios", userId, "notificaciones"),
+            {
+              tipo: "clase_cancelada",
+              titulo: "Clase cancelada",
+              mensaje: `La clase de ${nombreClase}${horario ? ` (${horario})` : ""} fue cancelada por el gimnasio.`,
+              leida: false,
+              creadoEn: serverTimestamp(),
+            }
+          ));
+        }
+      }
       // Delete the class template itself
-      deletePromises.push(deleteDoc(doc(db, "gimnasios", user.uid, "clases", claseId)));
-      await Promise.all(deletePromises);
+      promises.push(deleteDoc(doc(db, "gimnasios", user.uid, "clases", claseId)));
+      await Promise.all(promises);
       setClases((prev) => prev.filter((c) => c.id !== claseId));
     } catch (error) {
       console.log("Delete class error:", error?.code || error?.message || error);

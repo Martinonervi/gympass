@@ -44,7 +44,7 @@ export default function GymOwnerTabs({ theme, setIsSignedIn }) {
         }}
       >
         {(props) => (
-          <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} />
+          <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} userRole="gimnasio" />
         )}
       </Tab.Screen>
     </Tab.Navigator>

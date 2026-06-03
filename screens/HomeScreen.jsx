@@ -4,7 +4,7 @@ import {
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, limit } from 'firebase/firestore';
 import QRCode from 'react-native-qrcode-svg';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -63,6 +63,8 @@ export default function HomeScreen() {
   const [loadingReservas, setLoadingReservas] = useState(true);
   const [comprobante, setComprobante] = useState(null);
   const [feedbackPendiente, setFeedbackPendiente] = useState([]);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
@@ -142,7 +144,26 @@ export default function HomeScreen() {
         }
       };
 
+      // Load in-app notifications
+      const fetchNotificaciones = async () => {
+        try {
+          const user = auth.currentUser;
+          if (!user) return;
+          const snap = await getDocs(query(
+            collection(db, 'usuarios', user.uid, 'notificaciones'),
+            orderBy('creadoEn', 'desc'),
+            limit(30)
+          ));
+          if (active) {
+            setNotificaciones(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
+        } catch (e) {
+          console.log('HomeScreen: error cargando notificaciones:', e?.code, e?.message);
+        }
+      };
+
       fetchUserData();
+      fetchNotificaciones();
       return () => { active = false; };
     }, [])
   );
@@ -170,6 +191,46 @@ export default function HomeScreen() {
         },
       ]
     );
+  };
+
+  const unreadCount = notificaciones.filter(n => !n.leida).length;
+
+  const handleOpenNotificaciones = () => {
+    setNotifModalVisible(true);
+    // Mark all unread as read locally and in Firestore (fire-and-forget)
+    const user = auth.currentUser;
+    if (!user) return;
+    notificaciones
+      .filter(n => !n.leida)
+      .forEach(n =>
+        updateDoc(doc(db, 'usuarios', user.uid, 'notificaciones', n.id), { leida: true })
+          .catch(() => {})
+      );
+    setNotificaciones(prev => prev.map(n => ({ ...n, leida: true })));
+  };
+
+  const handleDeleteNotif = async (notifId) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'notificaciones', notifId));
+      setNotificaciones(prev => prev.filter(n => n.id !== notifId));
+    } catch (e) {
+      console.log('Error eliminando notificación:', e?.message);
+    }
+  };
+
+  const handleDeleteAllNotifs = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await Promise.all(
+        notificaciones.map(n => deleteDoc(doc(db, 'usuarios', user.uid, 'notificaciones', n.id)))
+      );
+      setNotificaciones([]);
+    } catch (e) {
+      console.log('Error eliminando notificaciones:', e?.message);
+    }
   };
 
   const handleFeedback = async (ocupacion) => {
@@ -204,6 +265,76 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      {/* ── Notification panel ─────────────────────────────────────────────── */}
+      <Modal
+        visible={notifModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNotifModalVisible(false)}
+      >
+        <View style={styles.notifOverlay}>
+          <View style={styles.notifPanel}>
+            <View style={styles.notifPanelHeader}>
+              <Text style={styles.notifPanelTitle}>Notificaciones</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                {notificaciones.length > 0 && (
+                  <TouchableOpacity onPress={handleDeleteAllNotifs}>
+                    <Text style={styles.notifClearAllText}>Eliminar todas</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => setNotifModalVisible(false)}>
+                  <MaterialCommunityIcons name="close" size={22} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {notificaciones.length === 0 ? (
+              <View style={styles.notifEmpty}>
+                <MaterialCommunityIcons name="bell-off-outline" size={44} color={COLORS.textMuted} />
+                <Text style={styles.notifEmptyText}>Sin notificaciones</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {notificaciones.map(n => {
+                  const esCancel = n.tipo === 'clase_cancelada';
+                  return (
+                    <View key={n.id} style={[styles.notifItem, !n.leida && styles.notifItemUnread]}>
+                      <View style={[styles.notifIconCircle, { backgroundColor: esCancel ? '#2a0a0a' : '#0a1f0e' }]}>
+                        <MaterialCommunityIcons
+                          name={esCancel ? 'calendar-remove' : 'headset'}
+                          size={18}
+                          color={esCancel ? COLORS.error : COLORS.green}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.notifTitulo}>{n.titulo}</Text>
+                        <Text style={styles.notifMensaje}>{n.mensaje}</Text>
+                        {!!n.creadoEn?.seconds && (
+                          <Text style={styles.notifFecha}>
+                            {new Date(n.creadoEn.seconds * 1000).toLocaleDateString('es-AR', {
+                              day: '2-digit', month: '2-digit', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteNotif(n.id)}
+                        style={styles.notifDeleteBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialCommunityIcons name="trash-can-outline" size={17} color={COLORS.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Comprobante modal ───────────────────────────────────────────────── */}
       <Modal
         visible={!!comprobante}
         transparent
@@ -301,8 +432,13 @@ export default function HomeScreen() {
               Hola{nombreUsuario ? `, ${nombreUsuario}` : ''}!
             </Text>
           </View>
-          <TouchableOpacity style={styles.notifBtn}>
+          <TouchableOpacity style={styles.notifBtn} onPress={handleOpenNotificaciones}>
             <Ionicons name="notifications-outline" size={18} color={COLORS.textSecondary} />
+            {unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -943,5 +1079,115 @@ fbSendBtnText: {
   color: '#fff',
   fontSize: 13,
   fontWeight: '700',
+},
+
+// ── Notification badge on bell ──────────────────────────────────────────────
+notifBadge: {
+  position: 'absolute',
+  top: -5,
+  right: -5,
+  backgroundColor: COLORS.error,
+  borderRadius: 10,
+  minWidth: 18,
+  height: 18,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 3,
+},
+notifBadgeText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: '800',
+},
+
+// ── Notification panel modal ───────────────────────────────────────────────
+notifOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  justifyContent: 'flex-end',
+},
+notifPanel: {
+  backgroundColor: COLORS.card,
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  borderTopWidth: 1,
+  borderColor: COLORS.border,
+  maxHeight: '75%',
+  paddingBottom: 30,
+},
+notifPanelHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingHorizontal: 22,
+  paddingVertical: 18,
+  borderBottomWidth: 1,
+  borderBottomColor: COLORS.border,
+},
+notifPanelTitle: {
+  color: COLORS.text,
+  fontSize: 18,
+  fontWeight: '800',
+},
+notifEmpty: {
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 12,
+  paddingVertical: 50,
+},
+notifEmptyText: {
+  color: COLORS.textMuted,
+  fontSize: 15,
+},
+notifItem: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  gap: 12,
+  paddingHorizontal: 22,
+  paddingVertical: 14,
+  borderBottomWidth: 1,
+  borderBottomColor: COLORS.border,
+},
+notifItemUnread: {
+  backgroundColor: '#0d1e2e',
+},
+notifIconCircle: {
+  width: 38,
+  height: 38,
+  borderRadius: 19,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+notifTitulo: {
+  color: COLORS.text,
+  fontSize: 14,
+  fontWeight: '700',
+  marginBottom: 3,
+},
+notifMensaje: {
+  color: COLORS.textMuted,
+  fontSize: 13,
+  lineHeight: 18,
+  marginBottom: 4,
+},
+notifFecha: {
+  color: COLORS.textMuted,
+  fontSize: 11,
+},
+notifUnreadDot: {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+  backgroundColor: COLORS.green,
+  marginTop: 6,
+},
+notifClearAllText: {
+  color: COLORS.error,
+  fontSize: 13,
+  fontWeight: '600',
+},
+notifDeleteBtn: {
+  paddingTop: 2,
+  alignSelf: 'flex-start',
 },
 });
