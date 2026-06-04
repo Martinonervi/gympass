@@ -25,6 +25,7 @@ import ClassCalendarScreen from "./screens/ClassCalendarScreen";
 import QRScannerScreen from "./screens/QRScannerScreen";
 import CodeValidatorScreen from "./screens/CodeValidatorScreen";
 import GymReportsScreen from "./screens/GymReportsScreen";
+import GymReviewsScreen from "./screens/GymReviewsScreen";
 import MapScreen from "./screens/MapScreen";
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -114,6 +115,7 @@ function App() {
             <Stack.Screen name="QRScanner" component={QRScannerScreen} />
             <Stack.Screen name="CodeValidator" component={CodeValidatorScreen} />
             <Stack.Screen name="GymReports" component={GymReportsScreen} />
+            <Stack.Screen name="GymReviews" component={GymReviewsScreen} />
             <Stack.Screen name="Map" component={MapScreen} />
           </Stack.Navigator>
         ) : (

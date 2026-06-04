@@ -198,6 +198,7 @@ export default function GymDetailScreen({ route, navigation }) {
         rating: miRating,
         comentario: miComentario.trim(),
         fecha: serverTimestamp(),
+        plan: userPlan ? (PLAN_LABELS[userPlan] || "Classic") : "Classic",
       };
       await setDoc(doc(db, "gimnasios", gymId, "resenas", user.uid), payload);
       setTieneResena(true);
@@ -623,6 +624,12 @@ export default function GymDetailScreen({ route, navigation }) {
                       })}
                     </Text>
                   )}
+                  {!!r.respuestaGym && r.respuestaGym.trim() !== "" && (
+                    <View style={styles.resenaRespuestaBox}>
+                      <Text style={styles.resenaRespuestaTitulo}>Respuesta del gimnasio:</Text>
+                      <Text style={styles.resenaRespuestaTexto}>{r.respuestaGym}</Text>
+                    </View>
+                  )}
                 </View>
               ))
           )}
@@ -962,6 +969,16 @@ const styles = StyleSheet.create({
   resenaCardNombre: { color: COLORS.text, fontSize: 14, fontWeight: "600" },
   resenaCardComentario: { color: COLORS.textMuted, fontSize: 13, marginBottom: 4, lineHeight: 18 },
   resenaCardFecha: { color: COLORS.textMuted, fontSize: 11 },
+  resenaRespuestaBox: {
+    marginTop: 10,
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.2)",
+  },
+  resenaRespuestaTitulo: { color: COLORS.green, fontSize: 12, fontWeight: "bold", marginBottom: 4 },
+  resenaRespuestaTexto: { color: COLORS.text, fontSize: 13, lineHeight: 18 },
 
   modalOverlay: {
     flex: 1,
