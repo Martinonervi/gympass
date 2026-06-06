@@ -15,13 +15,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import * as WebBrowser from "expo-web-browser";
 import { auth, db } from "../firebaseConfig";
+
+const BACKEND_URL = "http://localhost:3000";
 
 // ─── Plan constants ───────────────────────────────────────────────────────────
 const PLANES = [
   {
     id: "classic",
     nombre: "Classic",
+    precio: 5000,
     color: "#64748b",
     beneficios: [
       "Acceso a gimnasios Classic",
@@ -31,6 +35,7 @@ const PLANES = [
   {
     id: "platinum",
     nombre: "Platinum",
+    precio: 10000,
     color: "#8b5cf6",
     beneficios: [
       "Acceso a gimnasios Classic y Platinum",
@@ -41,6 +46,7 @@ const PLANES = [
   {
     id: "black",
     nombre: "Black",
+    precio: 20000,
     color: "#f59e0b",
     beneficios: [
       "Acceso a todos los gimnasios",
@@ -136,6 +142,24 @@ export default function PassScreen() {
     if (!user || saving) return;
     setSaving(true);
     try {
+      const idToken = await user.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/crear-preferencia`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ planId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Error al crear preferencia");
+
+      await WebBrowser.openBrowserAsync(data.initPoint);
+
+      // Cuando el usuario cierra el browser, asumimos que el pago fue exitoso
+      // y actualizamos el plan directo en Firestore
       await setDoc(
         doc(db, "usuarios", user.uid),
         { plan: planId, planActualizadoEn: serverTimestamp() },
@@ -146,7 +170,7 @@ export default function PassScreen() {
       showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
     } catch (error) {
       console.log("PassScreen selectPlan error:", error?.code || error?.message || error);
-      showSnackbar("No se pudo actualizar el plan.");
+      showSnackbar("No se pudo iniciar el pago. Intentá de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -260,6 +284,7 @@ export default function PassScreen() {
                   <MaterialCommunityIcons name="check-circle" size={22} color={plan.color} />
                 )}
               </View>
+              <Text style={styles.planPrecio}>${plan.precio.toLocaleString("es-AR")}/mes</Text>
 
               {plan.beneficios.map((b, i) => (
                 <View key={i} style={styles.benefitRow}>
@@ -338,6 +363,7 @@ const styles = StyleSheet.create({
     alignItems: "center", marginBottom: 10,
   },
   planName: { fontSize: 20, fontWeight: "800" },
+  planPrecio: { color: COLORS.textMuted, fontSize: 13, marginBottom: 10 },
   planAction: {
     backgroundColor: COLORS.greenDark,
     borderRadius: 12, paddingVertical: 12,
