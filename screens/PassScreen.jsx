@@ -18,7 +18,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import * as WebBrowser from "expo-web-browser";
 import { auth, db } from "../firebaseConfig";
 
-const BACKEND_URL = "http://localhost:3000";
+const BACKEND_URL = "https://gympass-production.up.railway.app";
 
 // ─── Plan constants ───────────────────────────────────────────────────────────
 const PLANES = [
