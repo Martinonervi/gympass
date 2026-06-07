@@ -22,6 +22,7 @@ const COLORS = {
 export default function GymStatsScreen() {
   const [loading, setLoading] = useState(true);
   const [topClases, setTopClases] = useState([]);
+  const [horariosPico, setHorariosPico] = useState([]);
 
   useEffect(() => {
     fetchStats();
@@ -44,25 +45,55 @@ export default function GymStatsScreen() {
         ...d.data(),
       }));
 
+      // =========================
+      // TOP CLASES
+      // =========================
+
       const ranking = {};
 
       reservas
         .filter((r) => r.tipo === "clase")
         .forEach((r) => {
           const nombre = r.actividad || "Clase";
-          ranking[nombre] = (ranking[nombre] || 0) + 1;
+
+          ranking[nombre] =
+            (ranking[nombre] || 0) + 1;
         });
 
-      const ordenadas = Object.entries(ranking)
+      const clasesOrdenadas = Object.entries(ranking)
         .map(([nombre, cantidad]) => ({
           nombre,
           cantidad,
         }))
         .sort((a, b) => b.cantidad - a.cantidad);
 
-      setTopClases(ordenadas);
+      setTopClases(clasesOrdenadas);
+
+      // =========================
+      // HORARIOS PICO
+      // =========================
+
+      const horarios = {};
+
+      reservas.forEach((r) => {
+        if (!r.horaInicio) return;
+
+        horarios[r.horaInicio] =
+          (horarios[r.horaInicio] || 0) + 1;
+      });
+
+      const horariosOrdenados = Object.entries(horarios)
+        .map(([hora, cantidad]) => ({
+          hora,
+          cantidad,
+        }))
+        .sort((a, b) =>
+          a.hora.localeCompare(b.hora)
+        );
+
+      setHorariosPico(horariosOrdenados);
     } catch (error) {
-      console.error(error);
+      console.error("Error cargando estadísticas:", error);
     } finally {
       setLoading(false);
     }
@@ -71,7 +102,10 @@ export default function GymStatsScreen() {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={COLORS.green} />
+        <ActivityIndicator
+          size="large"
+          color={COLORS.green}
+        />
       </View>
     );
   }
@@ -80,6 +114,37 @@ export default function GymStatsScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Estadísticas</Text>
+
+        {/* HORARIOS PICO */}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Horarios pico
+          </Text>
+
+          {horariosPico.length === 0 ? (
+            <Text style={styles.empty}>
+              No hay datos suficientes.
+            </Text>
+          ) : (
+            horariosPico.map((item) => (
+              <View
+                key={item.hora}
+                style={styles.row}
+              >
+                <Text style={styles.className}>
+                  {item.hora}
+                </Text>
+
+                <Text style={styles.count}>
+                  {item.cantidad}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* TOP CLASES */}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
@@ -92,7 +157,10 @@ export default function GymStatsScreen() {
             </Text>
           ) : (
             topClases.map((clase, index) => (
-              <View key={clase.nombre} style={styles.row}>
+              <View
+                key={clase.nombre}
+                style={styles.row}
+              >
                 <Text style={styles.className}>
                   #{index + 1} {clase.nombre}
                 </Text>
@@ -139,6 +207,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 16,
     padding: 16,
+    marginBottom: 16,
   },
 
   cardTitle: {
