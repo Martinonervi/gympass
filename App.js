@@ -30,6 +30,8 @@ import MapScreen from "./screens/MapScreen";
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
+import GymStatsScreen from "./screens/GymStatsScreen";
+
 const Stack = createNativeStackNavigator();
 
 function getInitialRoute(role) {
@@ -111,6 +113,7 @@ function App() {
             <Stack.Screen name="EditUserInfo" component={EditUserInfoScreen} />
             <Stack.Screen name="ChangeLoginData" component={ChangeLoginDataScreen} />
             <Stack.Screen name="GymReservations" component={GymReservationsScreen} />
+            <Stack.Screen name="GymStats" component={GymStatsScreen} />
             <Stack.Screen name="ClassCalendar" component={ClassCalendarScreen} />
             <Stack.Screen name="QRScanner" component={QRScannerScreen} />
             <Stack.Screen name="CodeValidator" component={CodeValidatorScreen} />
