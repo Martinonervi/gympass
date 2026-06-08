@@ -207,6 +207,7 @@ export default function ClassCalendarScreen({ route, navigation }) {
         diaHora:           `${displayDate} · ${horaInicio} - ${horaFin}`,
         fecha:             serverTimestamp(),
         estado:            "pendiente",
+        planUsuario: userPlan ? userPlan.toLowerCase() : "classic",
       };
       const ref = await addDoc(collection(db, "reservas"), payload);
       setReservas((prev) => [
