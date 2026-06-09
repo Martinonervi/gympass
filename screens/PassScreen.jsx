@@ -25,7 +25,7 @@ const PLANES = [
   {
     id: "classic",
     nombre: "Classic",
-    precio: 5000,
+    precio: 40000,
     color: "#64748b",
     beneficios: [
       "Acceso a gimnasios Classic",
@@ -35,7 +35,7 @@ const PLANES = [
   {
     id: "platinum",
     nombre: "Platinum",
-    precio: 10000,
+    precio: 65000,
     color: "#8b5cf6",
     beneficios: [
       "Acceso a gimnasios Classic y Platinum",
@@ -46,7 +46,7 @@ const PLANES = [
   {
     id: "black",
     nombre: "Black",
-    precio: 20000,
+    precio: 90000,
     color: "#f59e0b",
     beneficios: [
       "Acceso a todos los gimnasios",
@@ -156,18 +156,35 @@ export default function PassScreen() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Error al crear preferencia");
 
-      await WebBrowser.openBrowserAsync(data.initPoint);
-
-      // Cuando el usuario cierra el browser, asumimos que el pago fue exitoso
-      // y actualizamos el plan directo en Firestore
-      await setDoc(
-        doc(db, "usuarios", user.uid),
-        { plan: planId, planActualizadoEn: serverTimestamp() },
-        { merge: true }
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.initPoint,
+        "gympass://"
       );
-      setPlanActivo(planId);
-      const plan = PLANES.find((p) => p.id === planId);
-      showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+
+      const url = result?.url || "";
+      const isApproved =
+        url.includes("status=approved") ||
+        url.includes("collection_status=approved");
+      const isPending =
+        url.includes("status=pending") ||
+        url.includes("collection_status=pending");
+
+      if (result.type === "success" && isApproved) {
+        await setDoc(
+          doc(db, "usuarios", user.uid),
+          { plan: planId, planActualizadoEn: serverTimestamp() },
+          { merge: true }
+        );
+        setPlanActivo(planId);
+        const plan = PLANES.find((p) => p.id === planId);
+        showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+      } else if (isPending) {
+        showSnackbar("El pago está pendiente de acreditación.", "error");
+      } else if (result.type === "cancel" || result.type === "dismiss") {
+        showSnackbar("Pago cancelado.", "error");
+      } else {
+        showSnackbar("El pago no fue aprobado. Intentá de nuevo.", "error");
+      }
     } catch (error) {
       console.log("PassScreen selectPlan error:", error?.code || error?.message || error);
       showSnackbar("No se pudo iniciar el pago. Intentá de nuevo.");
