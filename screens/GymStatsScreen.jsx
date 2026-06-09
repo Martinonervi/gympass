@@ -5,8 +5,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
@@ -23,7 +25,7 @@ const COLORS = {
   black: "#f59e0b",     // Dorado/Ámbar
 };
 
-export default function GymStatsScreen() {
+export default function GymStatsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [topClases, setTopClases] = useState([]);
   const [horariosPico, setHorariosPico] = useState([]);
@@ -146,6 +148,10 @@ export default function GymStatsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
+          <Text style={styles.backText}>Volver</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Estadísticas</Text>
 
         {/* DISTRIBUCIÓN POR PLAN */}
@@ -230,6 +236,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: 22 },
   loading: { flex: 1, backgroundColor: COLORS.bg, justifyContent: "center", alignItems: "center" },
+  back: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16, alignSelf: "flex-start" },
+  backText: { color: COLORS.green, fontSize: 15 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800", marginBottom: 20 },
   card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 16, marginBottom: 16 },
   cardTitle: { color: COLORS.green, fontSize: 18, fontWeight: "700", marginBottom: 16 },
