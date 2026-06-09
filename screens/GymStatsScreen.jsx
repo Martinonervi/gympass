@@ -56,7 +56,7 @@ export default function GymStatsScreen() {
       // =========================
       const ranking = {};
       reservas
-        .filter((r) => r.tipo === "clase" && r.estado === "usado")
+        .filter((r) => r.tipo === "clase")
         .forEach((r) => {
           const nombre = r.actividad || "Clase";
           ranking[nombre] = (ranking[nombre] || 0) + 1;
@@ -216,7 +216,7 @@ export default function GymStatsScreen() {
             topClases.map((clase, index) => (
               <View key={clase.nombre} style={styles.row}>
                 <Text style={styles.className}>#{index + 1} {clase.nombre}</Text>
-                <Text style={styles.count}>{clase.cantidad} asist.</Text>
+                <Text style={styles.count}>{clase.cantidad}</Text>
               </View>
             ))
           )}
