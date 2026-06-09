@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { collection, getDocs } from "firebase/firestore";
+import { fetchGymCongestion } from "../utils/congestion";
 import { db } from "../firebaseConfig";
 import * as Location from "expo-location";
 import { PLAN_ORDER, canAccessGym } from "../utils/planes";
@@ -44,6 +45,10 @@ const ACTIVIDADES_PRESET = [
 
 const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
 const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
+
+const OCCUPANCY_EMOJIS  = ['😊', '😐', '😕', '😰'];
+const OCCUPANCY_LABELS  = ['Tranquilo', 'Normal', 'Concurrido', 'Muy lleno'];
+const OCCUPANCY_BORDERS = ['#16a34a', '#ca8a04', '#ea580c', '#dc2626'];
 const PLAN_OPTIONS = [
   { id: null,       label: "Cualquier plan" },
   { id: "classic",  label: "Classic"  },
@@ -61,6 +66,7 @@ export default function ExploreScreen({ navigation }) {
   const [activityFilter, setActivityFilter] = useState([]);
   const [planFilter, setPlanFilter] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [congestionMap, setCongestionMap] = useState({}); // { gymId: 0-3 }
 
   useEffect(() => {
     async function fetchGyms() {
@@ -68,6 +74,8 @@ export default function ExploreScreen({ navigation }) {
         const snapshot = await getDocs(collection(db, "gimnasios"));
         const loadedGyms = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setGyms(loadedGyms);
+        // Fire congestion fetch in background (non-blocking)
+        fetchAllCongestion(loadedGyms.map((g) => g.id));
       } catch (error) {
         console.error("Error fetching gyms:", error);
       } finally {
@@ -76,6 +84,17 @@ export default function ExploreScreen({ navigation }) {
     }
     fetchGyms();
   }, []);
+
+  async function fetchAllCongestion(gymIds) {
+    try {
+      const entries = await Promise.all(
+        gymIds.map(async (gymId) => [gymId, await fetchGymCongestion(gymId)])
+      );
+      setCongestionMap(Object.fromEntries(entries));
+    } catch (e) {
+      console.log("fetchAllCongestion error:", e?.message);
+    }
+  }
 
   useEffect(() => {
     async function fetchLocation() {
@@ -146,6 +165,18 @@ export default function ExploreScreen({ navigation }) {
           {item.nombreGimnasio || item.nombre || "Gimnasio sin nombre"}
         </Text>
         <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+          {/* Congestion dot */}
+          {congestionMap[item.id] !== undefined && (
+            <View style={[
+              styles.congestionBadge,
+              { borderColor: OCCUPANCY_BORDERS[congestionMap[item.id]] },
+            ]}>
+              <Text style={{ fontSize: 11 }}>{OCCUPANCY_EMOJIS[congestionMap[item.id]]}</Text>
+              <Text style={styles.congestionBadgeText}>
+                {OCCUPANCY_LABELS[congestionMap[item.id]]}
+              </Text>
+            </View>
+          )}
           {(() => {
             const plan = item.planGimnasio || "classic";
             return (
@@ -417,6 +448,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   planBadgeText: { fontSize: 10, fontWeight: "700" },
+  congestionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#1a2535",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#243244",
+  },
+  congestionBadgeText: { fontSize: 10, color: COLORS.textMuted, fontWeight: "600" },
   emptyText: { color: COLORS.textMuted, fontSize: 16, textAlign: "center", marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "center", alignItems: "center" },
   modalBox: { backgroundColor: COLORS.card, borderRadius: 20, padding: 24, width: "88%", borderWidth: 1, borderColor: COLORS.border, maxHeight: "80%" },

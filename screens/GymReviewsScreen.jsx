@@ -205,7 +205,7 @@ export default function GymReviewsScreen({ navigation }) {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.userName}>{item.nombreUsuario || "Usuario anónimo"}</Text>
+          <Text style={styles.userName}>{item.emailUsuario || item.nombreUsuario || "Usuario anónimo"}</Text>
           <Text style={styles.dateText}>{formatFecha(item.fecha)}</Text>
         </View>
 
@@ -342,7 +342,7 @@ export default function GymReviewsScreen({ navigation }) {
             <Text style={styles.modalTitle}>Responder Reseña</Text>
             {selectedReview && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
-                De {selectedReview.nombreUsuario}: "{selectedReview.comentario}"
+                De {selectedReview.emailUsuario || selectedReview.nombreUsuario || "Usuario"}: "{selectedReview.comentario}"
               </Text>
             )}
 

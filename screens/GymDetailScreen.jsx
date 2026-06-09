@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from "firebase/firestore";
+import { fetchGymCongestion } from "../utils/congestion";
 import QRCode from "react-native-qrcode-svg";
 import { auth, db } from "../firebaseConfig";
 import { canAccessGym } from "../utils/planes";
@@ -35,6 +36,14 @@ const COLORS = {
 
 const PLAN_LABELS = { classic: "Classic", platinum: "Platinum", black: "Black" };
 const PLAN_COLORS = { classic: "#64748b", platinum: "#8b5cf6", black: "#f59e0b" };
+
+// Must match the same order as HomeScreen's OCCUPANCY (4 levels)
+const OCCUPANCY = [
+  { label: 'Tranquilo',  emoji: '😊', bg: '#14532d33', border: '#16a34a' },
+  { label: 'Normal',     emoji: '😐', bg: '#78350f33', border: '#ca8a04' },
+  { label: 'Concurrido', emoji: '😕', bg: '#7c2d1233', border: '#ea580c' },
+  { label: 'Muy lleno',  emoji: '😰', bg: '#7f1d1d33', border: '#dc2626' },
+];
 
 function RefreshBanner() {
   return (
@@ -65,6 +74,7 @@ export default function GymDetailScreen({ route, navigation }) {
   const [reporteTexto, setReporteTexto] = useState("");
   const [enviandoReporte, setEnviandoReporte] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [congestionLevel, setCongestionLevel] = useState(0); // 0-4
 
   const fetchData = async () => {
       try {
@@ -107,7 +117,13 @@ export default function GymDetailScreen({ route, navigation }) {
     }
   };
 
+  const fetchCongestion = async () => {
+    const level = await fetchGymCongestion(gymId);
+    setCongestionLevel(level);
+  };
+
   useEffect(() => { if (gymId) fetchData(); }, [gymId]);
+  useEffect(() => { if (gymId) fetchCongestion(); }, [gymId]);
 
   const reservarPase = async () => {
     const user = auth.currentUser;
@@ -196,6 +212,7 @@ export default function GymDetailScreen({ route, navigation }) {
       const payload = {
         userId: user.uid,
         nombreUsuario,
+        emailUsuario: user.email || "",
         rating: miRating,
         comentario: miComentario.trim(),
         fecha: serverTimestamp(),
@@ -389,13 +406,26 @@ export default function GymDetailScreen({ route, navigation }) {
             </View>
           )}
         </View>
-        {avgRating !== null && (
-          <View style={styles.ratingRow}>
-            <MaterialCommunityIcons name="star" size={16} color="#f59e0b" />
-            <Text style={styles.ratingAvg}>{avgRating.toFixed(1)}</Text>
-            <Text style={styles.ratingCount}>({resenas.length} reseña{resenas.length !== 1 ? "s" : ""})</Text>
+        <View style={styles.ratingRow}>
+          {avgRating !== null ? (
+            <>
+              <MaterialCommunityIcons name="star" size={16} color="#f59e0b" />
+              <Text style={styles.ratingAvg}>{avgRating.toFixed(1)}</Text>
+              <Text style={styles.ratingCount}>({resenas.length} reseña{resenas.length !== 1 ? "s" : ""})</Text>
+            </>
+          ) : (
+            <Text style={styles.sinResenas}>Sin reseñas</Text>
+          )}
+        </View>
+        <View style={styles.congestionRow}>
+          <View style={[
+            styles.congestionChip,
+            { backgroundColor: OCCUPANCY[congestionLevel].bg, borderColor: OCCUPANCY[congestionLevel].border },
+          ]}>
+            <Text style={{ fontSize: 14 }}>{OCCUPANCY[congestionLevel].emoji}</Text>
+            <Text style={styles.congestionChipText}>{OCCUPANCY[congestionLevel].label}</Text>
           </View>
-        )}
+        </View>
 
         {fotos && fotos.length > 0 && (
           <View style={styles.photosSection}>
@@ -603,7 +633,7 @@ export default function GymDetailScreen({ route, navigation }) {
               .map((r) => (
                 <View key={r.id} style={styles.resenaCard}>
                   <View style={styles.resenaCardHeader}>
-                    <Text style={styles.resenaCardNombre}>{r.nombreUsuario || "Usuario"}</Text>
+                    <Text style={styles.resenaCardNombre}>{r.emailUsuario || r.nombreUsuario || "Usuario"}</Text>
                     <View style={styles.starsRowSmall}>
                       {[1,2,3,4,5].map((i) => (
                         <MaterialCommunityIcons
@@ -627,7 +657,7 @@ export default function GymDetailScreen({ route, navigation }) {
                   )}
                   {!!r.respuestaGym && r.respuestaGym.trim() !== "" && (
                     <View style={styles.resenaRespuestaBox}>
-                      <Text style={styles.resenaRespuestaTitulo}>Respuesta del gimnasio:</Text>
+                      <Text style={styles.resenaRespuestaTitulo}>{nombre || "Gimnasio"}:</Text>
                       <Text style={styles.resenaRespuestaTexto}>{r.respuestaGym}</Text>
                     </View>
                   )}
@@ -896,7 +926,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginBottom: 20,
+    marginBottom: 6,
     marginTop: -12,
   },
   ratingAvg: { color: "#f59e0b", fontWeight: "700", fontSize: 15 },
@@ -1092,6 +1122,30 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+  },
+
+  sinResenas: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+  },
+  congestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  congestionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  congestionChipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   reportarBtn: {

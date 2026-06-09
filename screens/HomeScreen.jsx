@@ -4,7 +4,7 @@ import {
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import QRCode from 'react-native-qrcode-svg';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -45,12 +45,12 @@ const mockData = {
   },
 };
 
+// 4 levels — same emoji used in survey and in all congestion indicators
 const OCCUPANCY = [
-  { label: 'Vacío',     emoji: '😄', color: '#14532d' },
-  { label: 'Tranquilo', emoji: '🙂', color: '#14532d' },
-  { label: 'Moderado',  emoji: '😐', color: '#1e3a1a' },
-  { label: 'Lleno',     emoji: '😟', color: '#3a2a10' },
-  { label: 'Muy lleno', emoji: '😰', color: '#3a1010' },
+  { label: 'Tranquilo',  emoji: '😊', border: '#16a34a', selectedBg: '#0d2a1a' },
+  { label: 'Normal',     emoji: '😐', border: '#ca8a04', selectedBg: '#2a1f00' },
+  { label: 'Concurrido', emoji: '😕', border: '#ea580c', selectedBg: '#2a1000' },
+  { label: 'Muy lleno',  emoji: '😰', border: '#dc2626', selectedBg: '#2a0000' },
 ];
 
 function RefreshBanner() {
@@ -294,10 +294,20 @@ export default function HomeScreen() {
     const reserva = feedbackPendiente[0];
     if (!reserva) return;
     try {
+      const user = auth.currentUser;
+      // Persist feedback on the reservation
       await updateDoc(doc(db, 'reservas', reserva.id), {
         feedbackDado: true,
         ocupacion,
       });
+      // Write congestion vote so GymDetailScreen can show live occupancy
+      if (reserva.gymId) {
+        await addDoc(collection(db, 'gimnasios', reserva.gymId, 'congestion_votos'), {
+          userId: user?.uid || '',
+          valor: ocupacion,            // 0 = Vacío … 4 = Muy lleno
+          creadoEn: serverTimestamp(),
+        });
+      }
       setFeedbackPendiente(prev => prev.slice(1));
       setSelectedOccupancy(null);
     } catch (e) {
@@ -659,10 +669,12 @@ export default function HomeScreen() {
                   >
                     <View style={[
                       styles.fbEmoji,
-                      { backgroundColor: opt.color },
-                      selectedOccupancy === i && styles.fbEmojiSelected,
+                      selectedOccupancy === i && {
+                        borderColor: opt.border,
+                        backgroundColor: opt.selectedBg,
+                      },
                     ]}>
-                      <Text style={{ fontSize: 18 }}>{opt.emoji}</Text>
+                      <Text style={{ fontSize: 28 }}>{opt.emoji}</Text>
                     </View>
                     <Text style={[
                       styles.fbLabel,
@@ -983,15 +995,14 @@ fbOption: {
   flex: 1,
 },
 fbEmoji: {
-  width: 38,
-  height: 38,
-  borderRadius: 19,
+  width: 52,
+  height: 52,
+  borderRadius: 26,
   alignItems: 'center',
   justifyContent: 'center',
-},
-fbEmojiSelected: {
+  backgroundColor: '#1a2535',
   borderWidth: 2,
-  borderColor: COLORS.green,
+  borderColor: 'transparent',
 },
 fbLabel: {
   fontSize: 10,
