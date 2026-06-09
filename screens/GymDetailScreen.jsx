@@ -170,6 +170,7 @@ export default function GymDetailScreen({ route, navigation }) {
         fecha: serverTimestamp(),
         fechaISO: new Date().toISOString().slice(0, 10),
         estado: "pendiente",
+        planUsuario: userPlan ? userPlan.toLowerCase() : "classic",
       });
       setComprobante({
         id: docRef.id,
