@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 // Votes expire after 2 hours
@@ -22,7 +22,7 @@ const LAMBDA = Math.log(2) / 90;
 export async function fetchGymCongestion(gymId) {
   try {
     const now = new Date();
-    const cutoff = Timestamp.fromDate(new Date(now.getTime() - TWO_HOURS_MS));
+    const cutoff = new Date(now.getTime() - TWO_HOURS_MS);
 
     const snap = await getDocs(
       query(
