@@ -15,7 +15,7 @@ const db = getFirestore();
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 
-const PRECIOS = { classic: 40000, platinum: 65000, black: 90000 };
+const PRECIOS = { classic: 5000, platinum: 10000, black: 20000 };
 const NOMBRES = { classic: "Plan Classic", platinum: "Plan Platinum", black: "Plan Black" };
 
 app.post("/crear-preferencia", async (req, res) => {
@@ -44,12 +44,6 @@ app.post("/crear-preferencia", async (req, res) => {
         }],
         external_reference: `${uid}|${planId}`,
         notification_url: "https://gympass-production.up.railway.app/webhook",
-        back_urls: {
-          success: "gympass://payment?status=approved",
-          failure: "gympass://payment?status=rejected",
-          pending: "gympass://payment?status=pending",
-        },
-        auto_return: "approved",
       },
     });
 
@@ -73,7 +67,7 @@ app.post("/webhook", async (req, res) => {
     const [uid, planId] = payment.external_reference.split("|");
     if (!uid || !planId) return res.sendStatus(200);
 
-    await db.collection("usuarios").doc(uid).set(
+    await db.collection("users").doc(uid).set(
       { plan: planId, planActivadoEn: new Date() },
       { merge: true }
     );
