@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  TouchableOpacity,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { doc, getDoc } from "firebase/firestore";
@@ -18,7 +19,7 @@ const COLORS = {
   placeholder: "#475569",
 };
 
-export default function EmployerHomeScreen() {
+export default function EmployerHomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [nombreEmpresa, setNombreEmpresa] = useState("");
 
@@ -75,14 +76,31 @@ export default function EmployerHomeScreen() {
         </>
       )}
 
-      <View style={styles.placeholder}>
+      <TouchableOpacity
+        style={styles.configButton}
+        onPress={() => navigation.navigate("EmployerPlanConfig")}
+      >
         <MaterialCommunityIcons
-          name="clock-outline"
+          name="domain"
           size={28}
-          color={COLORS.placeholder}
+          color={COLORS.green}
         />
-        <Text style={styles.placeholderText}>Sin acciones por ahora</Text>
-      </View>
+        <Text style={styles.configButtonText}>Configurar Plan Corporativo</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 16 }} />
+
+      <TouchableOpacity
+        style={styles.manageButton}
+        onPress={() => navigation.navigate("EmployerManageEmployees")}
+      >
+        <MaterialCommunityIcons
+          name="account-group-outline"
+          size={28}
+          color={COLORS.text}
+        />
+        <Text style={styles.manageButtonText}>Administrar Nómina</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -114,10 +132,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 28,
   },
-  placeholder: {
+  configButton: {
     borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: COLORS.border,
+    borderColor: "rgba(34, 197, 94, 0.3)",
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
     borderRadius: 14,
     paddingVertical: 22,
     paddingHorizontal: 18,
@@ -125,8 +143,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  placeholderText: {
-    color: COLORS.placeholder,
-    fontSize: 13,
+  configButtonText: {
+    color: COLORS.green,
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  manageButton: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: "transparent",
+    borderRadius: 14,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    width: "100%",
+    alignItems: "center",
+    gap: 8,
+  },
+  manageButtonText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });

@@ -27,6 +27,8 @@ import CodeValidatorScreen from "./screens/CodeValidatorScreen";
 import GymReportsScreen from "./screens/GymReportsScreen";
 import GymReviewsScreen from "./screens/GymReviewsScreen";
 import MapScreen from "./screens/MapScreen";
+import EmployerPlanConfigScreen from "./screens/EmployerPlanConfigScreen";
+import EmployerManageEmployeesScreen from "./screens/EmployerManageEmployeesScreen";
 import { auth, db } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -110,6 +112,8 @@ function App() {
             <Stack.Screen name="GymDetail" component={GymDetailScreen} />
             <Stack.Screen name="EditGymInfo" component={EditGymInfoScreen} />
             <Stack.Screen name="EditEmployerInfo" component={EditEmployerInfoScreen} />
+            <Stack.Screen name="EmployerPlanConfig" component={EmployerPlanConfigScreen} />
+            <Stack.Screen name="EmployerManageEmployees" component={EmployerManageEmployeesScreen} />
             <Stack.Screen name="EditUserInfo" component={EditUserInfoScreen} />
             <Stack.Screen name="ChangeLoginData" component={ChangeLoginDataScreen} />
             <Stack.Screen name="GymReservations" component={GymReservationsScreen} />
