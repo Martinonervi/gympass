@@ -295,6 +295,17 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
           </TouchableOpacity>
         </View>
 
+        {rol === "usuario" && (
+          <TouchableOpacity
+            style={[styles.secondaryButton, { marginTop: 12, borderColor: COLORS.orange }]}
+            onPress={() => navigation.navigate("LinkCorporateAccount")}
+          >
+            <Text style={[styles.secondaryButtonText, { color: COLORS.orange }]}>
+              Vincular Cuenta Corporativa
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {(rol === "usuario" || rol === "gimnasio") && (
           <TouchableOpacity
             style={styles.reportButton}

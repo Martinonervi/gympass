@@ -59,18 +59,18 @@ const PLANES = [
 // ─── Snackbar ─────────────────────────────────────────────────────────────────
 function Snackbar({ message, type = "error", visible }) {
   const translateY = useRef(new Animated.Value(100)).current;
-  const opacity    = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }),
-        Animated.timing(opacity,    { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
     } else {
       Animated.parallel([
         Animated.timing(translateY, { toValue: 100, duration: 250, useNativeDriver: true }),
-        Animated.timing(opacity,    { toValue: 0,   duration: 250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start();
     }
   }, [visible]);
@@ -79,7 +79,7 @@ function Snackbar({ message, type = "error", visible }) {
   return (
     <Animated.View
       style={[styles.snackbar, isSuccess ? styles.snackbarSuccess : styles.snackbarError,
-        { transform: [{ translateY }], opacity }]}
+      { transform: [{ translateY }], opacity }]}
       pointerEvents="none"
     >
       <Text style={styles.snackbarIcon}>{isSuccess ? "✓" : "✕"}</Text>
@@ -110,18 +110,21 @@ function RefreshBanner() {
 
 // ─── PassScreen ───────────────────────────────────────────────────────────────
 export default function PassScreen() {
-  const [loading, setLoading]     = useState(true);
-  const [saving,  setSaving]      = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [planActivo, setPlanActivo] = useState(null);
-  const { snackbar, showSnackbar }  = useSnackbar();
+  const { snackbar, showSnackbar } = useSnackbar();
 
   const fetchPlan = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) { setLoading(false); return; }
     try {
       const snap = await getDoc(doc(db, "usuarios", user.uid));
-      if (snap.exists()) setPlanActivo(snap.data().plan || null);
+      if (snap.exists()) {
+        const planGuardado = snap.data().plan;
+        setPlanActivo(planGuardado ? planGuardado.toLowerCase() : null);
+      };
     } catch (error) {
       console.log("PassScreen fetchPlan error:", error?.code || error?.message || error);
     } finally {
@@ -313,19 +316,19 @@ export default function PassScreen() {
 }
 
 const COLORS = {
-  bg:        "#0f1520",
-  card:      "#152030",
-  green:     "#22c55e",
+  bg: "#0f1520",
+  card: "#152030",
+  green: "#22c55e",
   greenDark: "#16a34a",
-  border:    "#243244",
-  text:      "#ffffff",
+  border: "#243244",
+  text: "#ffffff",
   textMuted: "#94a3b8",
-  error:     "#ef4444",
+  error: "#ef4444",
 };
 
 const styles = StyleSheet.create({
-  safe:    { flex: 1, backgroundColor: COLORS.bg },
-  center:  { flex: 1, justifyContent: "center", alignItems: "center" },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { padding: 22, paddingBottom: 40 },
 
   title: { color: COLORS.text, fontSize: 28, fontWeight: "800", marginBottom: 16 },
@@ -337,8 +340,8 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   activeLabel: { color: COLORS.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 },
-  activeName:  { fontSize: 26, fontWeight: "800", marginBottom: 10 },
-  activeDesc:  { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
+  activeName: { fontSize: 26, fontWeight: "800", marginBottom: 10 },
+  activeDesc: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
 
   benefitRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   benefitText: { color: COLORS.textMuted, fontSize: 13, flex: 1 },
@@ -380,8 +383,8 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
   },
-  snackbarError:   { backgroundColor: "#1f0a0a", borderWidth: 1, borderColor: COLORS.error },
+  snackbarError: { backgroundColor: "#1f0a0a", borderWidth: 1, borderColor: COLORS.error },
   snackbarSuccess: { backgroundColor: "#0a1f0e", borderWidth: 1, borderColor: COLORS.green },
-  snackbarIcon:    { color: COLORS.text, fontSize: 14, fontWeight: "800" },
-  snackbarText:    { color: COLORS.text, fontSize: 14, flex: 1, lineHeight: 20 },
+  snackbarIcon: { color: COLORS.text, fontSize: 14, fontWeight: "800" },
+  snackbarText: { color: COLORS.text, fontSize: 14, flex: 1, lineHeight: 20 },
 });

@@ -23,9 +23,9 @@ const COLORS = {
 };
 
 const PLANES = {
-  classic:  { nombre: 'Classic',  descripcion: 'Acceso a gimnasios básicos.' },
+  classic: { nombre: 'Classic', descripcion: 'Acceso a gimnasios básicos.' },
   platinum: { nombre: 'Platinum', descripcion: 'Acceso a gimnasios premium y clases grupales.' },
-  black:    { nombre: 'Black',    descripcion: 'Acceso ilimitado a toda la red, incluyendo spa y nutrición.' },
+  black: { nombre: 'Black', descripcion: 'Acceso ilimitado a toda la red, incluyendo spa y nutrición.' },
 };
 
 const mockData = {
@@ -47,10 +47,10 @@ const mockData = {
 
 // 4 levels — same emoji used in survey and in all congestion indicators
 const OCCUPANCY = [
-  { label: 'Tranquilo',  emoji: '😊', border: '#16a34a', selectedBg: '#0d2a1a' },
-  { label: 'Normal',     emoji: '😐', border: '#ca8a04', selectedBg: '#2a1f00' },
+  { label: 'Tranquilo', emoji: '😊', border: '#16a34a', selectedBg: '#0d2a1a' },
+  { label: 'Normal', emoji: '😐', border: '#ca8a04', selectedBg: '#2a1f00' },
   { label: 'Concurrido', emoji: '😕', border: '#ea580c', selectedBg: '#2a1000' },
-  { label: 'Muy lleno',  emoji: '😰', border: '#dc2626', selectedBg: '#2a0000' },
+  { label: 'Muy lleno', emoji: '😰', border: '#dc2626', selectedBg: '#2a0000' },
 ];
 
 function RefreshBanner() {
@@ -225,7 +225,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const planData = planId ? PLANES[planId] : null;
+  const planData = planId ? PLANES[planId.toLowerCase()] : null;
 
   const eliminarReserva = (reservaId, nombre) => {
     Alert.alert(
@@ -261,7 +261,7 @@ export default function HomeScreen() {
       .filter(n => !n.leida)
       .forEach(n =>
         updateDoc(doc(db, 'usuarios', user.uid, 'notificaciones', n.id), { leida: true })
-          .catch(() => {})
+          .catch(() => { })
       );
     setNotificaciones(prev => prev.map(n => ({ ...n, leida: true })));
   };
@@ -323,9 +323,9 @@ export default function HomeScreen() {
   const esClaseComp = comprobante?.tipo === 'clase';
   const fechaComp = comprobante?.fecha?.seconds
     ? new Date(comprobante.fecha.seconds * 1000).toLocaleDateString('es-AR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
     : '';
 
   return (
@@ -729,583 +729,583 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: COLORS.bg 
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.bg
   },
-  scroll: { 
-    flex: 1 
+  scroll: {
+    flex: 1
   },
-  content: { 
-    padding: 20, 
-    paddingBottom: 32 
+  content: {
+    padding: 20,
+    paddingBottom: 32
   },
 
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'flex-start', 
-    marginBottom: 20, 
-    marginTop: 20 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+    marginTop: 20
   },
-  greetingSub: { 
-    fontSize: 12, 
-    color: COLORS.textMuted, 
-    marginBottom: 2 
+  greetingSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 2
   },
-  greetingName: { 
-    fontSize: 26, 
-    fontWeight: '700', 
-    color: COLORS.text, 
-    letterSpacing: -0.5 
+  greetingName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: -0.5
   },
-  notifBtn: { 
-    width: 36, 
-    height: 36, 
+  notifBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
     backgroundColor: '#1a2535',
-    borderWidth: 1, 
-    borderColor: '#2a3a4e', 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+    borderWidth: 1,
+    borderColor: '#2a3a4e',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
 
-  planCard: { 
-    backgroundColor: COLORS.greenDark, 
-    borderRadius: 18, 
-    padding: 18, 
-    marginBottom: 24 
+  planCard: {
+    backgroundColor: COLORS.greenDark,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 24
   },
-  planCardLoading: { 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    minHeight: 120 
+  planCardLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120
   },
-  planCardEmpty: { 
-    backgroundColor: '#1a2535', 
-    borderWidth: 1, 
-    borderColor: '#2a3a4e' 
+  planCardEmpty: {
+    backgroundColor: '#1a2535',
+    borderWidth: 1,
+    borderColor: '#2a3a4e'
   },
-  planBadge: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5, 
-    backgroundColor: 'rgba(255,255,255,0.15)', 
-    borderRadius: 20, 
-    paddingVertical: 3, 
-    paddingHorizontal: 10, 
-    alignSelf: 'flex-start', 
-    marginBottom: 6 
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 6
   },
-  planBadgeText: { 
-    fontSize: 11, 
-    color: '#d1fae5' 
+  planBadgeText: {
+    fontSize: 11,
+    color: '#d1fae5'
   },
-  planIconTop: { 
-    position: 'absolute', 
-    top: 14, 
-    right: 16, 
-    width: 38, 
-    height: 38, 
-    backgroundColor: 'rgba(255,255,255,0.12)', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  planIconTop: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    width: 38,
+    height: 38,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  planName: { 
-    fontSize: 22, 
-    fontWeight: '700', 
-    color: '#fff', 
-    marginBottom: 6 
+  planName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 6
   },
-  planDesc: { 
-    fontSize: 12, 
-    color: '#bbf7d0', 
-    marginBottom: 14 
+  planDesc: {
+    fontSize: 12,
+    color: '#bbf7d0',
+    marginBottom: 14
   },
-  planEmptyTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: COLORS.textSecondary, 
-    marginBottom: 6, 
-    marginTop: 4 
+  planEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    marginTop: 4
   },
   planEmptyDesc: {
-  fontSize: 13,
-  color: COLORS.textMuted,
-  marginBottom: 14,
-},
-planBtn: {
-  backgroundColor: 'rgba(255,255,255,0.18)',
-  borderRadius: 10,
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-},
-planBtnText: {
-  color: '#fff',
-  fontSize: 13,
-  fontWeight: '500',
-},
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 14,
+  },
+  planBtn: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  planBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
+  },
 
-sectionHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 12,
-},
-sectionTitle: {
-  fontSize: 16,
-  fontWeight: '700',
-  color: COLORS.text,
-},
-seeAll: {
-  fontSize: 12,
-  color: COLORS.green,
-  fontWeight: '500',
-},
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  seeAll: {
+    fontSize: 12,
+    color: COLORS.green,
+    fontWeight: '500',
+  },
 
-reservationCard: {
-  backgroundColor: COLORS.card,
-  borderRadius: 14,
-  padding: 14,
-  marginBottom: 12,
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 12,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-resIcon: {
-  width: 44,
-  height: 44,
-  backgroundColor: '#1e3a28',
-  borderRadius: 12,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-resBody: {
-  flex: 1,
-},
-resTagWrapper: {
-  marginBottom: 3,
-},
-resTag: {
-  backgroundColor: COLORS.greenDark,
-  color: '#fff',
-  fontSize: 10,
-  fontWeight: '600',
-  borderRadius: 6,
-  paddingVertical: 2,
-  paddingHorizontal: 7,
-  alignSelf: 'flex-start',
-},
-resName: {
-  fontSize: 15,
-  fontWeight: '700',
-  color: COLORS.text,
-  marginBottom: 1,
-},
-resDetail: {
-  fontSize: 11,
-  color: COLORS.textMuted,
-},
-resLoc: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  marginTop: 2,
-},
-resLocText: {
-  fontSize: 11,
-  color: COLORS.textMuted,
-},
-resCode: {
-  fontSize: 11,
-  color: COLORS.textMuted,
-  fontWeight: '700',
-  letterSpacing: 1,
-  marginTop: 3,
-},
-deleteBtn: {
-  padding: 6,
-},
-verBtn: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 5,
-  backgroundColor: '#1e2e40',
-  borderWidth: 1,
-  borderColor: '#2a3d52',
-  borderRadius: 10,
-  paddingVertical: 7,
-  paddingHorizontal: 12,
-},
-verBtnText: {
-  fontSize: 12,
-  color: COLORS.textSecondary,
-},
+  reservationCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  resIcon: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#1e3a28',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resBody: {
+    flex: 1,
+  },
+  resTagWrapper: {
+    marginBottom: 3,
+  },
+  resTag: {
+    backgroundColor: COLORS.greenDark,
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+    borderRadius: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    alignSelf: 'flex-start',
+  },
+  resName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 1,
+  },
+  resDetail: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  resLoc: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  resLocText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  resCode: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: 3,
+  },
+  deleteBtn: {
+    padding: 6,
+  },
+  verBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#1e2e40',
+    borderWidth: 1,
+    borderColor: '#2a3d52',
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  verBtnText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
 
-feedbackCard: {
-  backgroundColor: COLORS.cardDark,
-  borderRadius: 14,
-  padding: 14,
-  marginBottom: 24,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-fbHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 10,
-  marginBottom: 2,
-},
-fbIconWrap: {
-  width: 34,
-  height: 34,
-  backgroundColor: 'rgba(194,120,0,0.12)',
-  borderRadius: 10,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-fbTitle: {
-  fontSize: 13,
-  fontWeight: '600',
-  color: '#e2e8f0',
-},
-fbTime: {
-  fontSize: 11,
-  color: '#4a6070',
-},
-fbQuestion: {
-  fontSize: 13,
-  color: '#8fa3b0',
-  marginVertical: 10,
-},
-fbOptions: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-},
-fbOption: {
-  alignItems: 'center',
-  gap: 4,
-  flex: 1,
-},
-fbEmoji: {
-  width: 52,
-  height: 52,
-  borderRadius: 26,
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#1a2535',
-  borderWidth: 2,
-  borderColor: 'transparent',
-},
-fbLabel: {
-  fontSize: 10,
-  color: '#5d7a8a',
-  textAlign: 'center',
-},
+  feedbackCard: {
+    backgroundColor: COLORS.cardDark,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  fbHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 2,
+  },
+  fbIconWrap: {
+    width: 34,
+    height: 34,
+    backgroundColor: 'rgba(194,120,0,0.12)',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fbTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#e2e8f0',
+  },
+  fbTime: {
+    fontSize: 11,
+    color: '#4a6070',
+  },
+  fbQuestion: {
+    fontSize: 13,
+    color: '#8fa3b0',
+    marginVertical: 10,
+  },
+  fbOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  fbOption: {
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  fbEmoji: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a2535',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  fbLabel: {
+    fontSize: 10,
+    color: '#5d7a8a',
+    textAlign: 'center',
+  },
 
-atajoTitle: {
-  fontSize: 16,
-  fontWeight: '700',
-  color: COLORS.text,
-  marginBottom: 12,
-},
-atajoGrid: {
-  flexDirection: 'row',
-  gap: 10,
-},
-atajoCard: {
-  flex: 1,
-  backgroundColor: COLORS.card,
-  borderRadius: 14,
-  padding: 16,
-  alignItems: 'center',
-  gap: 8,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-atajoIcon: {
-  width: 36,
-  height: 36,
-  borderRadius: 10,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-atajoLabel: {
-  fontSize: 12,
-  color: COLORS.textSecondary,
-  textAlign: 'center',
-  fontWeight: '500',
-},
+  atajoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  atajoGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  atajoCard: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  atajoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atajoLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
 
-modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.7)',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: 24,
-},
-ticketContainer: {
-  width: '100%',
-  backgroundColor: COLORS.card,
-  borderRadius: 20,
-  overflow: 'hidden',
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-ticketTop: {
-  alignItems: 'center',
-  padding: 28,
-  gap: 8,
-},
-ticketTitle: {
-  color: COLORS.text,
-  fontSize: 20,
-  fontWeight: '800',
-  marginTop: 4,
-},
-ticketGym: {
-  color: COLORS.textMuted,
-  fontSize: 14,
-  textAlign: 'center',
-},
-ticketDivider: {
-  height: 1,
-  backgroundColor: COLORS.border,
-  position: 'relative',
-},
-ticketNotch: {
-  position: 'absolute',
-  left: -14,
-  top: -14,
-  width: 28,
-  height: 28,
-  borderRadius: 14,
-  backgroundColor: COLORS.bg,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-ticketBottom: {
-  padding: 24,
-  gap: 12,
-},
-ticketRow: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-},
-ticketLabel: {
-  color: COLORS.textMuted,
-  fontSize: 13,
-},
-ticketValue: {
-  color: COLORS.text,
-  fontSize: 13,
-  fontWeight: '600',
-},
-ticketEstadoBadge: {
-  backgroundColor: '#0a2e18',
-  borderRadius: 8,
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderWidth: 1,
-  borderColor: '#22c55e',
-},
-ticketEstadoText: {
-  color: '#22c55e',
-  fontSize: 12,
-  fontWeight: '700',
-},
-ticketEstadoBadgeUsado: {
-  backgroundColor: '#2e0a0a',
-  borderColor: '#ef4444',
-},
-ticketEstadoTextUsado: {
-  color: '#ef4444',
-},
-ticketCode: {
-  color: COLORS.green,
-  fontSize: 16,
-  fontWeight: '800',
-  letterSpacing: 2,
-},
-ticketRecordatorio: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',
-  gap: 8,
-  marginHorizontal: 24,
-  marginBottom: 16,
-  backgroundColor: '#2a1f00',
-  borderWidth: 1,
-  borderColor: '#f59e0b',
-  borderRadius: 10,
-  padding: 12,
-},
-ticketRecordatorioText: {
-  color: '#f59e0b',
-  fontSize: 13,
-  lineHeight: 18,
-  flex: 1,
-},
-ticketCloseBtn: {
-  margin: 24,
-  marginTop: 0,
-  backgroundColor: COLORS.greenDark,
-  borderRadius: 14,
-  paddingVertical: 14,
-  alignItems: 'center',
-},
-ticketCloseBtnText: {
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: '700',
-},
-qrWrap: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 16,
-  borderTopWidth: 1,
-  borderTopColor: COLORS.border,
-},
-fbSkipBtn: {
-  flex: 1,
-  borderRadius: 10,
-  paddingVertical: 10,
-  alignItems: 'center',
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-fbSkipBtnText: {
-  color: COLORS.textMuted,
-  fontSize: 13,
-  fontWeight: '600',
-},
-fbSendBtn: {
-  flex: 2,
-  backgroundColor: COLORS.greenDark,
-  borderRadius: 10,
-  paddingVertical: 10,
-  alignItems: 'center',
-},
-fbSendBtnText: {
-  color: '#fff',
-  fontSize: 13,
-  fontWeight: '700',
-},
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ticketContainer: {
+    width: '100%',
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ticketTop: {
+    alignItems: 'center',
+    padding: 28,
+    gap: 8,
+  },
+  ticketTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  ticketGym: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  ticketDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    position: 'relative',
+  },
+  ticketNotch: {
+    position: 'absolute',
+    left: -14,
+    top: -14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ticketBottom: {
+    padding: 24,
+    gap: 12,
+  },
+  ticketRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ticketLabel: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+  },
+  ticketValue: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  ticketEstadoBadge: {
+    backgroundColor: '#0a2e18',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  ticketEstadoText: {
+    color: '#22c55e',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  ticketEstadoBadgeUsado: {
+    backgroundColor: '#2e0a0a',
+    borderColor: '#ef4444',
+  },
+  ticketEstadoTextUsado: {
+    color: '#ef4444',
+  },
+  ticketCode: {
+    color: COLORS.green,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  ticketRecordatorio: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#2a1f00',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 10,
+    padding: 12,
+  },
+  ticketRecordatorioText: {
+    color: '#f59e0b',
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  ticketCloseBtn: {
+    margin: 24,
+    marginTop: 0,
+    backgroundColor: COLORS.greenDark,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  ticketCloseBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  qrWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  fbSkipBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  fbSkipBtnText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fbSendBtn: {
+    flex: 2,
+    backgroundColor: COLORS.greenDark,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  fbSendBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 
-// ── Notification badge on bell ──────────────────────────────────────────────
-notifBadge: {
-  position: 'absolute',
-  top: -5,
-  right: -5,
-  backgroundColor: COLORS.error,
-  borderRadius: 10,
-  minWidth: 18,
-  height: 18,
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 3,
-},
-notifBadgeText: {
-  color: '#fff',
-  fontSize: 10,
-  fontWeight: '800',
-},
+  // ── Notification badge on bell ──────────────────────────────────────────────
+  notifBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
 
-// ── Notification panel modal ───────────────────────────────────────────────
-notifOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.6)',
-  justifyContent: 'flex-end',
-},
-notifPanel: {
-  backgroundColor: COLORS.card,
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-  borderTopWidth: 1,
-  borderColor: COLORS.border,
-  maxHeight: '75%',
-  paddingBottom: 30,
-},
-notifPanelHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingHorizontal: 22,
-  paddingVertical: 18,
-  borderBottomWidth: 1,
-  borderBottomColor: COLORS.border,
-},
-notifPanelTitle: {
-  color: COLORS.text,
-  fontSize: 18,
-  fontWeight: '800',
-},
-notifEmpty: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 12,
-  paddingVertical: 50,
-},
-notifEmptyText: {
-  color: COLORS.textMuted,
-  fontSize: 15,
-},
-notifItem: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',
-  gap: 12,
-  paddingHorizontal: 22,
-  paddingVertical: 14,
-  borderBottomWidth: 1,
-  borderBottomColor: COLORS.border,
-},
-notifItemUnread: {
-  backgroundColor: '#0d1e2e',
-},
-notifIconCircle: {
-  width: 38,
-  height: 38,
-  borderRadius: 19,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-notifTitulo: {
-  color: COLORS.text,
-  fontSize: 14,
-  fontWeight: '700',
-  marginBottom: 3,
-},
-notifMensaje: {
-  color: COLORS.textMuted,
-  fontSize: 13,
-  lineHeight: 18,
-  marginBottom: 4,
-},
-notifFecha: {
-  color: COLORS.textMuted,
-  fontSize: 11,
-},
-notifUnreadDot: {
-  width: 8,
-  height: 8,
-  borderRadius: 4,
-  backgroundColor: COLORS.green,
-  marginTop: 6,
-},
-notifClearAllText: {
-  color: COLORS.error,
-  fontSize: 13,
-  fontWeight: '600',
-},
-notifDeleteBtn: {
-  paddingTop: 2,
-  alignSelf: 'flex-start',
-},
+  // ── Notification panel modal ───────────────────────────────────────────────
+  notifOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  notifPanel: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+    maxHeight: '75%',
+    paddingBottom: 30,
+  },
+  notifPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  notifPanelTitle: {
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  notifEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 50,
+  },
+  notifEmptyText: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+  },
+  notifItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  notifItemUnread: {
+    backgroundColor: '#0d1e2e',
+  },
+  notifIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifTitulo: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  notifMensaje: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  notifFecha: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+  notifUnreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.green,
+    marginTop: 6,
+  },
+  notifClearAllText: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  notifDeleteBtn: {
+    paddingTop: 2,
+    alignSelf: 'flex-start',
+  },
 });
