@@ -10,10 +10,13 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import * as WebBrowser from "expo-web-browser";
 import { auth, db } from "../firebaseConfig";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DismissKeyboard from "../components/DismissKeyboard";
+
+const BACKEND_URL = "https://gympass-production.up.railway.app";
 
 const COLORS = {
   bg: "#0f1520",
@@ -31,13 +34,19 @@ const PLANES = {
   Black: 20000,
 };
 
+// Meses que se cobran según el período (anual = 10 meses, 2 de descuento).
+const MESES_PERIODO = { mensual: 1, anual: 10 };
+
 export default function EmployerPlanConfigScreen({ navigation }) {
   const [employeeCount, setEmployeeCount] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("Classic");
+  const [periodo, setPeriodo] = useState("mensual"); // "mensual" | "anual"
+  const [cuposUsados, setCuposUsados] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const budget = employeeCount > 0 ? Number(employeeCount) * PLANES[selectedPlan] : 0;
+  const precioMensual = employeeCount > 0 ? Number(employeeCount) * PLANES[selectedPlan] : 0;
+  const budget = precioMensual * MESES_PERIODO[periodo];
 
   useEffect(() => {
     fetchCurrentPlan();
@@ -59,6 +68,10 @@ export default function EmployerPlanConfigScreen({ navigation }) {
         if (data.planTipo) {
           setSelectedPlan(data.planTipo);
         }
+        if (data.planPeriodo) {
+          setPeriodo(data.planPeriodo);
+        }
+        setCuposUsados(data.cuposUsados || 0);
       }
     } catch (error) {
       console.log("Error cargando el plan actual:", error);
@@ -67,9 +80,35 @@ export default function EmployerPlanConfigScreen({ navigation }) {
     }
   };
 
+  // Espera a que el webhook de MercadoPago marque el plan como pagado en Firestore.
+  const esperarPagoEmpresa = async (uid, intentos = 10, delay = 2000) => {
+    for (let i = 0; i < intentos; i++) {
+      try {
+        const snap = await getDoc(doc(db, "empleadores", uid));
+        if (snap.exists() && snap.data().planPagado === true) return true;
+      } catch (e) {
+        console.log("esperarPagoEmpresa error:", e?.message);
+      }
+      if (i < intentos - 1) await new Promise((r) => setTimeout(r, delay));
+    }
+    return false;
+  };
+
   const handleConfirmPlan = async () => {
     if (!employeeCount || Number(employeeCount) <= 0) {
       Alert.alert("Error", "Ingresá un número válido de empleados.");
+      return;
+    }
+
+    const cantidad = Number(employeeCount);
+    const planId = selectedPlan.toLowerCase(); // "classic" | "platinum" | "black"
+
+    // No permitir un tope por debajo de los empleados ya cargados.
+    if (cantidad < cuposUsados) {
+      Alert.alert(
+        "Cantidad insuficiente",
+        `Ya tenés ${cuposUsados} empleados cargados. Para reducir el plan a ${cantidad}, primero dá de baja empleados desde Administrar Nómina.`
+      );
       return;
     }
 
@@ -80,17 +119,81 @@ export default function EmployerPlanConfigScreen({ navigation }) {
 
       const employerRef = doc(db, "empleadores", user.uid);
 
+      // 1. Guardar la configuración elegida (todavía sin pagar).
       await setDoc(employerRef, {
-        cuposTotales: Number(employeeCount),
+        cuposTotales: cantidad,
         planTipo: selectedPlan,
-        presupuestoMensual: budget,
+        planPeriodo: periodo,
+        presupuestoMensual: precioMensual,
+        planPagado: false,
       }, { merge: true });
 
-      Alert.alert("Éxito", `Plan ${selectedPlan} corporativo guardado correctamente.`);
-      navigation.goBack();
+      // 2. Crear la preferencia de pago corporativo en el backend.
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/crear-preferencia-empresa`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ planId, cantidad, periodo }),
+      });
+      // Leemos como texto primero: si el backend devuelve HTML (p. ej. un 404
+      // porque el endpoint no está deployado), evitamos el "JSON Parse error".
+      const raw = await response.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(
+          "El servidor de pagos no respondió correctamente. Verificá que el backend esté actualizado en Railway."
+        );
+      }
+      if (!response.ok) throw new Error(data.error || "Error al crear preferencia");
+
+      // 3. Abrir MercadoPago y esperar el retorno (deep link) tras pagar.
+      const result = await WebBrowser.openAuthSessionAsync(data.initPoint, "gympass://payment");
+
+      const marcarPagado = async () => {
+        // Vencimiento: 1 mes (mensual) o 12 meses (anual) desde hoy.
+        const vence = new Date();
+        vence.setMonth(vence.getMonth() + (periodo === "anual" ? 12 : 1));
+        await setDoc(
+          employerRef,
+          {
+            planPagado: true,
+            planPeriodo: periodo,
+            planPagadoEn: serverTimestamp(),
+            planVence: vence,
+          },
+          { merge: true }
+        );
+      };
+
+      if (result.type === "success" && result.url) {
+        const status = result.url.match(/[?&]status=([^&]+)/)?.[1];
+        if (status === "approved") {
+          await marcarPagado();
+          Alert.alert("Pago confirmado", `Plan ${selectedPlan} corporativo activado para ${cantidad} empleados.`);
+          navigation.goBack();
+        } else if (status === "pending") {
+          Alert.alert("Pago pendiente", "El pago quedó pendiente de acreditación.");
+        } else {
+          Alert.alert("Pago rechazado", "El pago no se completó. La configuración quedó guardada sin pagar.");
+        }
+      } else {
+        // Cerró el checkout: el webhook pudo acreditar igual. Verificamos.
+        const pagado = await esperarPagoEmpresa(user.uid);
+        if (pagado) {
+          Alert.alert("Pago confirmado", `Plan ${selectedPlan} corporativo activado para ${cantidad} empleados.`);
+          navigation.goBack();
+        } else {
+          Alert.alert("Sin pago", "No se completó el pago. La configuración quedó guardada sin pagar.");
+        }
+      }
     } catch (error) {
       console.error("Error al configurar el plan:", error);
-      Alert.alert("Error", "No se pudo guardar la configuración. " + error.message);
+      Alert.alert("Error", "No se pudo procesar el pago. " + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -157,15 +260,41 @@ export default function EmployerPlanConfigScreen({ navigation }) {
           />
         </View>
 
+        {/* Selector de período */}
+        <Text style={styles.inputLabel}>Período de facturación</Text>
+        <View style={styles.planSelector}>
+          {[
+            { key: "mensual", label: "Mensual" },
+            { key: "anual", label: "Anual (2 meses gratis)" },
+          ].map((opt) => {
+            const isSelected = periodo === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.planCard, isSelected && styles.planCardActive]}
+                onPress={() => setPeriodo(opt.key)}
+              >
+                <Text style={[styles.planCardText, isSelected && styles.planCardTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.budgetCard}>
           <MaterialCommunityIcons name="calculator-variant-outline" size={28} color={COLORS.green} />
           <View style={styles.budgetInfo}>
-            <Text style={styles.budgetLabel}>Presupuesto Mensual</Text>
+            <Text style={styles.budgetLabel}>
+              {periodo === "anual" ? "Total anual" : "Total mensual"}
+            </Text>
             <Text style={styles.budgetValue}>
               {budget > 0 ? `$${budget.toLocaleString("es-AR")}` : "$0"}
             </Text>
             <Text style={styles.budgetDetail}>
-              (${PLANES[selectedPlan].toLocaleString("es-AR")} por usuario)
+              {periodo === "anual"
+                ? `${MESES_PERIODO.anual} meses · equivale a $${precioMensual.toLocaleString("es-AR")}/mes`
+                : `$${PLANES[selectedPlan].toLocaleString("es-AR")} por usuario/mes`}
             </Text>
           </View>
         </View>
@@ -175,8 +304,13 @@ export default function EmployerPlanConfigScreen({ navigation }) {
           onPress={handleConfirmPlan}
           disabled={isSubmitting}
         >
+          <MaterialCommunityIcons name="credit-card-outline" size={20} color={COLORS.bg} />
           <Text style={styles.buttonText}>
-            {isSubmitting ? "Guardando..." : "Confirmar Configuración"}
+            {isSubmitting
+              ? "Procesando..."
+              : budget > 0
+                ? `Pagar $${budget.toLocaleString("es-AR")}`
+                : "Guardar y pagar"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -317,7 +451,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
     borderRadius: 12,
     padding: 16,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     marginTop: "auto",
   },
   buttonDisabled: {
