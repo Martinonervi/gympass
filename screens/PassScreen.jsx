@@ -139,6 +139,24 @@ export default function PassScreen() {
     }, [fetchPlan])
   );
 
+  // Consulta Firestore varias veces para ver si el webhook de MercadoPago ya
+  // acreditó el plan. El webhook puede tardar varios segundos (sobre todo en
+  // sandbox), por eso reintentamos durante un rato. Devuelve true si el plan
+  // guardado coincide con el comprado.
+  async function esperarAcreditacion(uid, planId, intentos = 10, delay = 2000) {
+    for (let i = 0; i < intentos; i++) {
+      try {
+        const snap = await getDoc(doc(db, "usuarios", uid));
+        const planGuardado = snap.exists() ? (snap.data().plan || "").toLowerCase() : "";
+        if (planGuardado === planId) return true;
+      } catch (e) {
+        console.log("esperarAcreditacion error:", e?.message);
+      }
+      if (i < intentos - 1) await new Promise((r) => setTimeout(r, delay));
+    }
+    return false;
+  }
+
   async function selectPlan(planId) {
     if (planId === planActivo) return;
     const user = auth.currentUser;
@@ -168,10 +186,24 @@ export default function PassScreen() {
         "gympass://payment"
       );
 
-      // Si el usuario cierra el navegador sin completar el pago, el tipo es
-      // "cancel" o "dismiss" y NO se acredita ningún cambio de plan.
+      // Si el usuario cierra el navegador (toca la cruz) en vez de esperar la
+      // redirección automática, el deep link no se dispara y el tipo es
+      // "cancel"/"dismiss". Pero el pago PUDO haberse hecho igual: el webhook
+      // de MercadoPago actualiza Firestore por su cuenta. Antes de asumir que
+      // canceló, verificamos en Firestore si el webhook ya acreditó el plan.
       if (result.type !== "success" || !result.url) {
-        showSnackbar("Pago cancelado. No se realizó ningún cambio.", "error");
+        // El usuario cerró el checkout sin el deep link. El pago pudo igual
+        // haberse hecho (lo confirma el webhook). Verificamos EN SEGUNDO PLANO
+        // para no bloquear los botones mientras esperamos al webhook.
+        esperarAcreditacion(user.uid, planId).then((acreditado) => {
+          if (acreditado) {
+            setPlanActivo(planId);
+            const plan = PLANES.find((p) => p.id === planId);
+            showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+          } else {
+            fetchPlan();
+          }
+        });
         return;
       }
 
