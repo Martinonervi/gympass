@@ -307,6 +307,8 @@ export default function ExploreScreen({ navigation }) {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContainer}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListEmptyComponent={
           <Text style={styles.emptyText}>
             {distanceFilter !== null && !userLocation

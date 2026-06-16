@@ -207,7 +207,7 @@ export default function RegisterScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
           <Text style={styles.back}>Volver</Text>

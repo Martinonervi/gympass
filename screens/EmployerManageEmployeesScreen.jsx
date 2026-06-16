@@ -266,6 +266,8 @@ export default function EmployerManageEmployeesScreen({ navigation }) {
             keyExtractor={(item) => item.id}
             renderItem={renderEmployee}
             contentContainerStyle={styles.listContainer}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <MaterialCommunityIcons name="account-group-outline" size={48} color={COLORS.placeholder} />

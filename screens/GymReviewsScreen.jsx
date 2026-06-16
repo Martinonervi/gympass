@@ -327,6 +327,8 @@ export default function GymReviewsScreen({ navigation }) {
           renderItem={renderReview}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         />
       )}
 

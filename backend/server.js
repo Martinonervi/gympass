@@ -44,6 +44,12 @@ app.post("/crear-preferencia", async (req, res) => {
         }],
         external_reference: `${uid}|${planId}`,
         notification_url: "https://gympass-production.up.railway.app/webhook",
+        back_urls: {
+          success: "gympass://payment?status=approved",
+          failure: "gympass://payment?status=rejected",
+          pending: "gympass://payment?status=pending",
+        },
+        auto_return: "approved",
       },
     });
 
@@ -67,7 +73,7 @@ app.post("/webhook", async (req, res) => {
     const [uid, planId] = payment.external_reference.split("|");
     if (!uid || !planId) return res.sendStatus(200);
 
-    await db.collection("users").doc(uid).set(
+    await db.collection("usuarios").doc(uid).set(
       { plan: planId, planActivadoEn: new Date() },
       { merge: true }
     );

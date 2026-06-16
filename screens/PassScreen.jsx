@@ -159,18 +159,40 @@ export default function PassScreen() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Error al crear preferencia");
 
-      await WebBrowser.openBrowserAsync(data.initPoint);
-
-      // Cuando el usuario cierra el browser, asumimos que el pago fue exitoso
-      // y actualizamos el plan directo en Firestore
-      await setDoc(
-        doc(db, "usuarios", user.uid),
-        { plan: planId, planActualizadoEn: serverTimestamp() },
-        { merge: true }
+      // Abrimos el checkout y esperamos a que MercadoPago redirija de vuelta
+      // a la app mediante el deep link (back_urls). El segundo argumento es el
+      // scheme de retorno: cuando MP redirige a gympass://payment?status=...,
+      // openAuthSessionAsync se resuelve con { type: "success", url }.
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.initPoint,
+        "gympass://payment"
       );
-      setPlanActivo(planId);
-      const plan = PLANES.find((p) => p.id === planId);
-      showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+
+      // Si el usuario cierra el navegador sin completar el pago, el tipo es
+      // "cancel" o "dismiss" y NO se acredita ningún cambio de plan.
+      if (result.type !== "success" || !result.url) {
+        showSnackbar("Pago cancelado. No se realizó ningún cambio.", "error");
+        return;
+      }
+
+      // Parseamos el status que viene en la URL de retorno (back_url).
+      const returnedStatus = result.url.match(/[?&]status=([^&]+)/)?.[1];
+
+      if (returnedStatus === "approved") {
+        // Pago confirmado → acreditamos el plan en Firestore.
+        await setDoc(
+          doc(db, "usuarios", user.uid),
+          { plan: planId, planActualizadoEn: serverTimestamp() },
+          { merge: true }
+        );
+        setPlanActivo(planId);
+        const plan = PLANES.find((p) => p.id === planId);
+        showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+      } else if (returnedStatus === "pending") {
+        showSnackbar("El pago quedó pendiente de acreditación.", "error");
+      } else {
+        showSnackbar("El pago fue rechazado. No se acreditó el plan.", "error");
+      }
     } catch (error) {
       console.log("PassScreen selectPlan error:", error?.code || error?.message || error);
       showSnackbar("No se pudo iniciar el pago. Intentá de nuevo.");

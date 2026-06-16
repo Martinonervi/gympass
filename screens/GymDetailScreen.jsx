@@ -378,6 +378,8 @@ export default function GymDetailScreen({ route, navigation }) {
 
       <ScrollView
         contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

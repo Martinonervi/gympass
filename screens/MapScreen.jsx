@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from "react-native-maps";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
@@ -124,6 +124,7 @@ export default function MapScreen({ route, navigation }) {
         initialRegion={initialRegion}
         showsUserLocation
         showsMyLocationButton={false}
+        onPress={() => { Keyboard.dismiss(); setShowSuggestions(false); }}
       >
         {gyms.map((gym) => {
           const lat = Number(gym.latitude);

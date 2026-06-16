@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import DismissKeyboard from "../components/DismissKeyboard";
 
 const COLORS = {
   bg: "#0f1520",
@@ -194,6 +195,8 @@ export default function LoginScreen({ navigation, setIsSignedIn }) {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <DismissKeyboard>
+        <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <Text style={styles.logo}>GymPass</Text>
           <Text style={styles.subtitle}>Entrená donde quieras</Text>
@@ -246,6 +249,8 @@ export default function LoginScreen({ navigation, setIsSignedIn }) {
             </Text>
           </TouchableOpacity>
         </View>
+        </View>
+        </DismissKeyboard>
       </KeyboardAvoidingView>
 
       {/* Snackbar — fuera del KeyboardAvoidingView para que quede fijo al fondo */}

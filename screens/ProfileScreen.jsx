@@ -263,7 +263,7 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>Mi Perfil</Text>
         <Text style={styles.subtitle}>Datos de tu cuenta.</Text>
 

@@ -13,6 +13,7 @@ import {
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import DismissKeyboard from "../components/DismissKeyboard";
 
 const COLORS = {
   bg: "#0f1520",
@@ -108,6 +109,8 @@ export default function EmployerPlanConfigScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <DismissKeyboard>
+       <View style={{ flex: 1 }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
@@ -177,6 +180,8 @@ export default function EmployerPlanConfigScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
+       </View>
+      </DismissKeyboard>
     </KeyboardAvoidingView>
   );
 }

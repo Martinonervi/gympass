@@ -55,14 +55,31 @@ function App() {
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-          const rol = userDoc.exists() ? userDoc.data().rol : "usuario";
-          setUserRole(rol);
-        } catch (e) {
-          console.error("Error fetching role:", e);
-          setUserRole("usuario");
-        }
+        // El token de auth puede tardar un instante en propagarse a Firestore
+        // (típico en cuentas recién creadas), lo que produce un permission-denied
+        // transitorio. Reintentamos un par de veces antes de rendirnos.
+        const fetchRoleWithRetry = async (intentos = 3, delay = 600) => {
+          for (let i = 0; i < intentos; i++) {
+            try {
+              const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+              return userDoc.exists() ? userDoc.data().rol : "usuario";
+            } catch (e) {
+              const esPermiso =
+                e?.code === "permission-denied" ||
+                /insufficient permissions/i.test(e?.message || "");
+              if (esPermiso && i < intentos - 1) {
+                await new Promise((r) => setTimeout(r, delay));
+                continue;
+              }
+              console.error("Error fetching role:", e);
+              return "usuario";
+            }
+          }
+          return "usuario";
+        };
+
+        const rol = await fetchRoleWithRetry();
+        setUserRole(rol);
         setIsSignedIn(true);
       } else {
         setIsSignedIn(false);

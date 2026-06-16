@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebaseConfig";
+import DismissKeyboard from "../components/DismissKeyboard";
 
 const COLORS = {
   bg: "#0f1520",
@@ -49,6 +50,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <DismissKeyboard>
       <View style={styles.container}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>← Volver</Text>
@@ -76,6 +78,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+      </DismissKeyboard>
     </SafeAreaView>
   );
 }

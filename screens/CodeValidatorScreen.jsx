@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import DismissKeyboard from "../components/DismissKeyboard";
 
 const COLORS = {
   bg:        "#0f1520",
@@ -98,6 +99,8 @@ export default function CodeValidatorScreen({ navigation }) {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <DismissKeyboard>
+        <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
@@ -168,6 +171,8 @@ export default function CodeValidatorScreen({ navigation }) {
             </View>
           )}
         </View>
+        </View>
+        </DismissKeyboard>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
