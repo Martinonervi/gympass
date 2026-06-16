@@ -159,8 +159,13 @@ app.post("/webhook", async (req, res) => {
     const planId = partes[1];
     if (!planId) return res.sendStatus(200);
 
+    // Plan de usuario es mensual: vence un mes después del pago.
+    const ahoraInd = new Date();
+    const venceInd = new Date(ahoraInd);
+    venceInd.setMonth(venceInd.getMonth() + 1);
+
     await db.collection("usuarios").doc(uid).set(
-      { plan: planId, planActivadoEn: new Date() },
+      { plan: planId, planActivadoEn: ahoraInd, planVence: venceInd },
       { merge: true }
     );
 

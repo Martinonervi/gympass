@@ -8,6 +8,7 @@ import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, upd
 import QRCode from 'react-native-qrcode-svg';
 import { auth, db } from '../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { revisarVencimientoUsuario } from '../utils/suscripcionUsuario';
 
 const COLORS = {
   bg: '#0f1520',
@@ -87,6 +88,9 @@ export default function HomeScreen() {
         try {
           const user = auth.currentUser;
           if (!user) return;
+
+          // Da de baja el plan y notifica si venció (antes de leer el estado).
+          await revisarVencimientoUsuario(user.uid);
 
           const snap = await getDoc(doc(db, 'usuarios', user.uid));
           if (snap.exists() && active) {

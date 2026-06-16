@@ -17,6 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import * as WebBrowser from "expo-web-browser";
 import { auth, db } from "../firebaseConfig";
+import { revisarVencimientoUsuario } from "../utils/suscripcionUsuario";
 
 const BACKEND_URL = "https://gympass-production.up.railway.app";
 
@@ -114,17 +115,36 @@ export default function PassScreen() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [planActivo, setPlanActivo] = useState(null);
+  const [planVence, setPlanVence] = useState(null);
   const { snackbar, showSnackbar } = useSnackbar();
 
   const fetchPlan = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) { setLoading(false); return; }
     try {
+      // Si el plan venció, lo da de baja y notifica antes de leer el estado.
+      await revisarVencimientoUsuario(user.uid);
       const snap = await getDoc(doc(db, "usuarios", user.uid));
       if (snap.exists()) {
-        const planGuardado = snap.data().plan;
+        const data = snap.data();
+        const planGuardado = data.plan;
         setPlanActivo(planGuardado ? planGuardado.toLowerCase() : null);
-      };
+
+        // Fecha de vencimiento: usamos planVence si existe; si no, la estimamos
+        // como un mes desde el último pago (para planes activados antes).
+        let vence = data.planVence?.toDate ? data.planVence.toDate() : null;
+        if (!vence && planGuardado) {
+          const base =
+            data.planActualizadoEn?.toDate?.() ||
+            data.planActivadoEn?.toDate?.() ||
+            null;
+          if (base) {
+            vence = new Date(base);
+            vence.setMonth(vence.getMonth() + 1);
+          }
+        }
+        setPlanVence(planGuardado ? vence : null);
+      }
     } catch (error) {
       console.log("PassScreen fetchPlan error:", error?.code || error?.message || error);
     } finally {
@@ -212,12 +232,16 @@ export default function PassScreen() {
 
       if (returnedStatus === "approved") {
         // Pago confirmado → acreditamos el plan en Firestore.
+        // El plan de usuario es mensual: vence un mes después del pago.
+        const vence = new Date();
+        vence.setMonth(vence.getMonth() + 1);
         await setDoc(
           doc(db, "usuarios", user.uid),
-          { plan: planId, planActualizadoEn: serverTimestamp() },
+          { plan: planId, planActualizadoEn: serverTimestamp(), planVence: vence },
           { merge: true }
         );
         setPlanActivo(planId);
+        setPlanVence(vence);
         const plan = PLANES.find((p) => p.id === planId);
         showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
       } else if (returnedStatus === "pending") {
@@ -251,10 +275,11 @@ export default function PassScreen() {
     try {
       await setDoc(
         doc(db, "usuarios", user.uid),
-        { plan: null, planActualizadoEn: serverTimestamp() },
+        { plan: null, planActualizadoEn: serverTimestamp(), planVence: null },
         { merge: true }
       );
       setPlanActivo(null);
+      setPlanVence(null);
       showSnackbar("Tu plan fue dado de baja.", "success");
     } catch (error) {
       console.log("PassScreen cancelPlan error:", error?.code || error?.message || error);
@@ -276,6 +301,9 @@ export default function PassScreen() {
   }
 
   const planActivoData = PLANES.find((p) => p.id === planActivo);
+  const venceStr = planVence
+    ? planVence.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -301,6 +329,12 @@ export default function PassScreen() {
             <Text style={[styles.activeName, { color: planActivoData.color }]}>
               {planActivoData.nombre}
             </Text>
+            {venceStr && (
+              <View style={styles.venceRow}>
+                <MaterialCommunityIcons name="calendar-clock-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.venceText}>Vence el {venceStr}</Text>
+              </View>
+            )}
             {planActivoData.beneficios.map((b, i) => (
               <View key={i} style={styles.benefitRow}>
                 <MaterialCommunityIcons name="check-circle-outline" size={14} color={COLORS.green} />
@@ -394,7 +428,9 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   activeLabel: { color: COLORS.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 },
-  activeName: { fontSize: 26, fontWeight: "800", marginBottom: 10 },
+  activeName: { fontSize: 26, fontWeight: "800", marginBottom: 6 },
+  venceRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  venceText: { color: COLORS.textMuted, fontSize: 13, fontWeight: "600" },
   activeDesc: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
 
   benefitRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
