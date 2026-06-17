@@ -16,6 +16,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import DismissKeyboard from "../components/DismissKeyboard";
+import { ejecutarSeeding } from "../utils/seedDatabase";
 
 const COLORS = {
   bg: "#0f1520",
@@ -247,6 +248,22 @@ export default function LoginScreen({ navigation, setIsSignedIn }) {
               ¿No tenés cuenta?{" "}
               <Text style={styles.registerStrong}>Registrate</Text>
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: "#f59e0b",
+              marginTop: 20,
+              padding: 10,
+              borderRadius: 8,
+              alignItems: "center"
+            }}
+            onPress={async () => {
+              const res = await ejecutarSeeding();
+              showSnackbar(res ? "Datos de demo cargados." : "Error al cargar demo.", res ? "success" : "error");
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "bold" }}>[DEMO] Cargar Datos</Text>
           </TouchableOpacity>
         </View>
         </View>
