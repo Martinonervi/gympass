@@ -6,6 +6,7 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import * as Location from "expo-location";
+import fetchGyms from "../src/fetchGyms";
 
 const LOCATION_TIMEOUT_MS = 6000;
 const DEFAULT_REGION = { latitude: -34.6037, longitude: -58.3816, latitudeDelta: 0.1, longitudeDelta: 0.1 };
@@ -24,12 +25,10 @@ export default function MapScreen({ route, navigation }) {
   const focusName = route?.params?.gymName || null;
 
   useEffect(() => {
-    const fetchGyms = async () => {
-      const snapshot = await getDocs(collection(db, "gimnasios"));
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setGyms(data);
-    };
-    fetchGyms();
+    fetchGyms()
+      .then(setGyms)
+      .catch(console.error("Ocurrio un error al fetchear los gimnasios"))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -129,12 +128,12 @@ export default function MapScreen({ route, navigation }) {
         {gyms.map((gym) => {
           const lat = Number(gym.latitude);
           const lng = Number(gym.longitude);
+          
           if (isNaN(lat) || isNaN(lng)) return null;
           return (
             <Marker
               key={gym.id}
               coordinate={{ latitude: lat, longitude: lng }}
-              tracksViewChanges={false}
             >
               <View style={styles.markerContainer}>
                 <View style={styles.markerBubble}>
