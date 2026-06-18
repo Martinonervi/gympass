@@ -5,179 +5,250 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../firebaseConfig";
 
-const COLORS = {
-  bg: "#0f1520",
+const C = {
+  bg: "#0d1117",
+  surface: "#111827",
+  surfaceAlt: "#16a34a18",
+  border: "#1e293b",
+  borderGreen: "#16a34a44",
   green: "#22c55e",
-  greenDark: "#16a34a",
-  text: "#ffffff",
-  textMuted: "#94a3b8",
+  amber: "#f59e0b",
+  text: "#f1f5f9",
+  muted: "#475569",
 };
 
+const ACTION_CARDS = [
+  { label: "Detalles", sub: "Fotos e info", icon: "image-outline", screen: "ManageGymDetails", accent: false },
+  { label: "Clases", sub: "Gestionar horarios", icon: "calendar-outline", screen: "ManageClasses", accent: false },
+  { label: "Reservas", sub: "Ver recibidas", icon: "list-outline", screen: "GymReservations", accent: false },
+  { label: "Estadísticas", sub: "Métricas del gym", icon: "bar-chart-outline", screen: "GymStats", accent: false },
+  { label: "Reportes", sub: "De usuarios", icon: "flag-outline", screen: "GymReports", amber: true },
+  { label: "Reseñas", sub: "Ver opiniones", icon: "star-outline", screen: "GymReviews", amber: true },
+  { label: "Validar QR", sub: "Escanear pase", icon: "qr-code-outline", screen: "QRScanner", accent: true },
+  { label: "Código", sub: "Validar acceso", icon: "key-outline", screen: "CodeValidator", accent: true },
+];
+
 export default function GymOwnerHomeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [nombreGimnasio, setNombreGimnasio] = useState("");
+  const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null });
 
   useEffect(() => {
-    const fetchGym = async () => {
+    const fetchData = async () => {
       try {
         const user = auth.currentUser;
-        if (!user) {
-          setLoading(false);
-          return;
-        }
+        if (!user) return;
 
-        const gymSnap = await getDoc(doc(db, "gimnasios", user.uid));
+        const [gymSnap, clasesSnap, resenasSnap, reservasSnap] = await Promise.all([
+          getDoc(doc(db, "gimnasios", user.uid)),
+          getDocs(collection(db, "gimnasios", user.uid, "clases")),
+          getDocs(collection(db, "gimnasios", user.uid, "resenas")),
+          getDocs(query(collection(db, "reservas"), where("gymId", "==", user.uid))),
+        ]);
+
         if (gymSnap.exists()) {
           setNombreGimnasio(gymSnap.data().nombreGimnasio || "");
         }
-      } catch (error) {
-        // No mostramos el error en pantalla: el caso "doc no existe" o "permiso"
-        // se maneja visualmente con el estado vacío.
-        console.log("GymOwnerHome: no se pudo leer gimnasios/{uid}", error?.code || error?.message || error);
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
+        let reservasHoy = 0;
+        reservasSnap.forEach((d) => {
+          const secs = d.data().fecha?.seconds;
+          if (!secs) return;
+          const ts = secs * 1000;
+          if (ts >= todayStart.getTime() && ts <= todayEnd.getTime()) reservasHoy++;
+        });
+
+        let totalStars = 0;
+        let countStars = 0;
+        resenasSnap.forEach((d) => {
+          const r = d.data().rating;
+          if (typeof r === "number") { totalStars += r; countStars++; }
+        });
+        const reseñaPromedio = countStars > 0 ? (totalStars / countStars).toFixed(1) : null;
+
+        setStats({
+          reservasHoy,
+          clasesActivas: clasesSnap.size,
+          reseñaPromedio,
+        });
+      } catch (err) {
+        console.log("GymOwnerHome fetch error:", err?.code || err?.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchGym();
+    fetchData();
   }, []);
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color={COLORS.green} />
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={C.green} />
       </View>
     );
   }
 
-  const hasInfo = nombreGimnasio.trim().length > 0;
-
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.eyebrow}>PANEL DEL GIMNASIO</Text>
-
-      {hasInfo ? (
-        <>
-          <Text style={styles.title}>{nombreGimnasio}</Text>
-          <Text style={styles.subtitle}>Bienvenido de nuevo</Text>
-        </>
+      {nombreGimnasio ? (
+        <Text style={styles.gymName}>{nombreGimnasio}</Text>
       ) : (
-        <>
-          <Text style={styles.titleMuted}>Completá tu información</Text>
-          <Text style={styles.subtitle}>
-            Cargá los datos del gimnasio desde el tab Perfil.
-          </Text>
-        </>
+        <Text style={styles.gymName}>Tu gimnasio</Text>
       )}
+      <Text style={styles.subtitle}>
+        {nombreGimnasio ? "Bienvenido de nuevo" : "Completá tu información desde Perfil"}
+      </Text>
 
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("ManageGymDetails")}
-      >
-        <Text style={styles.buttonText}>Detalles y fotos del gimnasio</Text>
-      </TouchableOpacity>
+      <View style={styles.statsRow}>
+        <StatCard label="Reservas hoy" value={stats.reservasHoy} />
+        <StatCard label="Clases activas" value={stats.clasesActivas} />
+        <StatCard
+          label="Reseña prom."
+          value={stats.reseñaPromedio !== null ? stats.reseñaPromedio : "—"}
+        />
+      </View>
 
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("ManageClasses")}
-      >
-        <Text style={styles.buttonText}>Clases</Text>
-      </TouchableOpacity>
+      <Text style={styles.sectionLabel}>ACCIONES RÁPIDAS</Text>
 
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("GymReservations")}
-      >
-        <Text style={styles.buttonText}>Reservas recibidas</Text>
-      </TouchableOpacity>
+      <View style={styles.grid}>
+        {ACTION_CARDS.map((card) => (
+          <TouchableOpacity
+            key={card.screen}
+            style={[
+              styles.card,
+              card.accent && styles.cardAccent,
+            ]}
+            onPress={() => navigation.navigate(card.screen)}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={card.icon}
+              size={24}
+              color={card.amber ? C.amber : C.green}
+            />
+            <Text style={styles.cardLabel}>{card.label}</Text>
+            <Text style={styles.cardSub}>{card.sub}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
 
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("GymStats")}
-      >
-        <Text style={styles.buttonText}>Estadísticas</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("GymReports")}
-      >
-        <Text style={styles.buttonText}>Reportes de usuarios</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("GymReviews")}
-      >
-        <Text style={styles.buttonText}>Reseñas de alumnos</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => navigation.navigate("QRScanner")}
-      >
-        <Text style={styles.buttonText}>Validar QR</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("CodeValidator")}
-      >
-        <Text style={styles.buttonText}>Validar código de acceso</Text>
-      </TouchableOpacity>
+function StatCard({ label, value }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value !== null && value !== undefined ? value : "—"}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loader: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: C.bg,
     justifyContent: "center",
     alignItems: "center",
-    padding: 22,
+  },
+  scroll: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 32,
   },
   eyebrow: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    letterSpacing: 1,
-    marginBottom: 8,
+    color: C.muted,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    marginBottom: 4,
+    marginTop: 8,
   },
-  title: {
-    color: COLORS.green,
+  gymName: {
+    color: C.green,
     fontSize: 26,
-    fontWeight: "800",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  titleMuted: {
-    color: COLORS.green,
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 6,
-    textAlign: "center",
+    fontWeight: "700",
+    marginBottom: 2,
   },
   subtitle: {
-    color: COLORS.textMuted,
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 28,
+    color: C.muted,
+    fontSize: 13,
+    marginBottom: 20,
   },
-  button: {
-    backgroundColor: COLORS.greenDark,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    borderRadius: 14,
-    width: "100%",
-    alignItems: "center",
+  statsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 24,
   },
-  buttonText: {
-    color: COLORS.text,
+  statCard: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+  },
+  statLabel: {
+    color: C.muted,
+    fontSize: 10,
+    marginBottom: 4,
+  },
+  statValue: {
+    color: C.green,
+    fontSize: 22,
     fontWeight: "700",
-    fontSize: 16,
+  },
+  sectionLabel: {
+    color: C.muted,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  card: {
+    width: "47.5%",
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: C.border,
+  },
+  cardAccent: {
+    backgroundColor: C.surfaceAlt,
+    borderColor: C.borderGreen,
+  },
+  cardLabel: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  cardSub: {
+    color: C.muted,
+    fontSize: 11,
   },
 });
