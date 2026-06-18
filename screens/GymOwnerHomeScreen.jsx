@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,64 +40,66 @@ const ACTION_CARDS = [
 export default function GymOwnerHomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [nombreGimnasio, setNombreGimnasio] = useState("");
   const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null, saldoPendiente: null });
 
-  useFocusEffect(useCallback(() => {
-    const fetchData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return;
+  const fetchData = useCallback(async ({ isRefresh = false } = {}) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-        const [gymSnap, clasesSnap, resenasSnap, reservasSnap] = await Promise.all([
-          getDoc(doc(db, "gimnasios", user.uid)),
-          getDocs(collection(db, "gimnasios", user.uid, "clases")),
-          getDocs(collection(db, "gimnasios", user.uid, "resenas")),
-          getDocs(query(collection(db, "reservas"), where("gymId", "==", user.uid))),
-        ]);
+      const [gymSnap, clasesSnap, resenasSnap, reservasSnap] = await Promise.all([
+        getDoc(doc(db, "gimnasios", user.uid)),
+        getDocs(collection(db, "gimnasios", user.uid, "clases")),
+        getDocs(collection(db, "gimnasios", user.uid, "resenas")),
+        getDocs(query(collection(db, "reservas"), where("gymId", "==", user.uid))),
+      ]);
 
-        if (gymSnap.exists()) {
-          const gymData = gymSnap.data();
-          setNombreGimnasio(gymData.nombreGimnasio || "");
-          setStats((prev) => ({ ...prev, saldoPendiente: gymData.saldoPendiente ?? 0 }));
-        }
-
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const todayEnd = new Date();
-        todayEnd.setHours(23, 59, 59, 999);
-
-        let reservasHoy = 0;
-        reservasSnap.forEach((d) => {
-          const secs = d.data().fecha?.seconds;
-          if (!secs) return;
-          const ts = secs * 1000;
-          if (ts >= todayStart.getTime() && ts <= todayEnd.getTime()) reservasHoy++;
-        });
-
-        let totalStars = 0;
-        let countStars = 0;
-        resenasSnap.forEach((d) => {
-          const r = d.data().rating;
-          if (typeof r === "number") { totalStars += r; countStars++; }
-        });
-        const reseñaPromedio = countStars > 0 ? (totalStars / countStars).toFixed(1) : null;
-
-        setStats((prev) => ({
-          ...prev,
-          reservasHoy,
-          clasesActivas: clasesSnap.size,
-          reseñaPromedio,
-        }));
-      } catch (err) {
-        console.log("GymOwnerHome fetch error:", err?.code || err?.message);
-      } finally {
-        setLoading(false);
+      if (gymSnap.exists()) {
+        const gymData = gymSnap.data();
+        setNombreGimnasio(gymData.nombreGimnasio || "");
+        setStats((prev) => ({ ...prev, saldoPendiente: gymData.saldoPendiente ?? 0 }));
       }
-    };
 
-    fetchData();
-  }, [])));
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      let reservasHoy = 0;
+      reservasSnap.forEach((d) => {
+        const secs = d.data().fecha?.seconds;
+        if (!secs) return;
+        const ts = secs * 1000;
+        if (ts >= todayStart.getTime() && ts <= todayEnd.getTime()) reservasHoy++;
+      });
+
+      let totalStars = 0;
+      let countStars = 0;
+      resenasSnap.forEach((d) => {
+        const r = d.data().rating;
+        if (typeof r === "number") { totalStars += r; countStars++; }
+      });
+      const reseñaPromedio = countStars > 0 ? (totalStars / countStars).toFixed(1) : null;
+
+      setStats((prev) => ({
+        ...prev,
+        reservasHoy,
+        clasesActivas: clasesSnap.size,
+        reseñaPromedio,
+      }));
+    } catch (err) {
+      console.log("GymOwnerHome fetch error:", err?.code || err?.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   if (loading) {
     return (
@@ -111,6 +114,14 @@ export default function GymOwnerHomeScreen({ navigation }) {
       style={styles.scroll}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => fetchData({ isRefresh: true })}
+          tintColor={C.green}
+          colors={[C.green]}
+        />
+      }
     >
       <Text style={styles.eyebrow}>PANEL DEL GIMNASIO</Text>
       {nombreGimnasio ? (

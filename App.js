@@ -27,6 +27,7 @@ import CodeValidatorScreen from "./screens/CodeValidatorScreen";
 import GymReportsScreen from "./screens/GymReportsScreen";
 import GymReviewsScreen from "./screens/GymReviewsScreen";
 import MapScreen from "./screens/MapScreen";
+import HistorialScreen from "./screens/HistorialScreen";
 import EmployerPlanConfigScreen from "./screens/EmployerPlanConfigScreen";
 import EmployerManageEmployeesScreen from "./screens/EmployerManageEmployeesScreen";
 import LinkCorporateAccountScreen from "./screens/LinkCorporateAccountScreen";
@@ -143,6 +144,7 @@ function App() {
             <Stack.Screen name="GymReports" component={GymReportsScreen} />
             <Stack.Screen name="GymReviews" component={GymReviewsScreen} />
             <Stack.Screen name="Map" component={MapScreen} />
+            <Stack.Screen name="Historial" component={HistorialScreen} />
           </Stack.Navigator>
         ) : (
           <Stack.Navigator screenOptions={{ headerShown: false }}>

@@ -139,12 +139,12 @@ export default function HomeScreen() {
           };
 
           if (active) {
-            const lista = reservasSnap.docs
-              .filter(d => !isExpiredRes(d.data()) && !d.data().ocultaParaUsuario)
-              .map((d) => ({ id: d.id, ...d.data() }))
+            const all = reservasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const lista = all
+              .filter(r => !isExpiredRes(r) && !r.ocultaParaUsuario && r.estado !== 'usado')
               .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
             setReservas(lista);
-            setFeedbackPendiente(lista.filter(r => r.estado === 'usado' && !r.feedbackDado));
+            setFeedbackPendiente(all.filter(r => r.estado === 'usado' && !r.feedbackDado && !r.feedbackSkipped));
           }
         } catch (e) {
           console.log('HomeScreen: error cargando reservas:', e?.code, e?.message);
@@ -214,12 +214,12 @@ export default function HomeScreen() {
         }
         return false;
       };
-      const lista = reservasSnap.docs
-        .filter(d => !isExpiredRes(d.data()) && !d.data().ocultaParaUsuario)
-        .map(d => ({ id: d.id, ...d.data() }))
+      const all = reservasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const lista = all
+        .filter(r => !isExpiredRes(r) && !r.ocultaParaUsuario && r.estado !== 'usado')
         .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
       setReservas(lista);
-      setFeedbackPendiente(lista.filter(r => r.estado === 'usado' && !r.feedbackDado));
+      setFeedbackPendiente(all.filter(r => r.estado === 'usado' && !r.feedbackDado && !r.feedbackSkipped));
 
       setNotificaciones(notifSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
@@ -326,9 +326,17 @@ export default function HomeScreen() {
     }
   };
 
-  const skipFeedback = () => {
+  const skipFeedback = async () => {
+    const reserva = feedbackPendiente[0];
     setFeedbackPendiente(prev => prev.slice(1));
     setSelectedOccupancy(null);
+    if (reserva?.id) {
+      try {
+        await updateDoc(doc(db, 'reservas', reserva.id), { feedbackSkipped: true });
+      } catch (e) {
+        console.log('Error marcando feedbackSkipped:', e?.message);
+      }
+    }
   };
 
   const esClaseComp = comprobante?.tipo === 'clase';
@@ -727,11 +735,14 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.atajoLabel}>Buscar cercanos</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.atajoCard}>
+          <TouchableOpacity
+            style={styles.atajoCard}
+            onPress={() => navigation.navigate('Historial')}
+          >
             <View style={[styles.atajoIcon, { backgroundColor: '#1e2a1a' }]}>
-              <MaterialCommunityIcons name="dumbbell" size={18} color={COLORS.green} />
+              <MaterialCommunityIcons name="history" size={18} color={COLORS.green} />
             </View>
-            <Text style={styles.atajoLabel}>Filtrar por actividad</Text>
+            <Text style={styles.atajoLabel}>Mis reservas</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
