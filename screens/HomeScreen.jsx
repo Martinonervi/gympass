@@ -140,7 +140,7 @@ export default function HomeScreen() {
 
           if (active) {
             const lista = reservasSnap.docs
-              .filter(d => !isExpiredRes(d.data()))
+              .filter(d => !isExpiredRes(d.data()) && !d.data().ocultaParaUsuario)
               .map((d) => ({ id: d.id, ...d.data() }))
               .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
             setReservas(lista);
@@ -215,7 +215,7 @@ export default function HomeScreen() {
         return false;
       };
       const lista = reservasSnap.docs
-        .filter(d => !isExpiredRes(d.data()))
+        .filter(d => !isExpiredRes(d.data()) && !d.data().ocultaParaUsuario)
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
       setReservas(lista);
@@ -232,21 +232,24 @@ export default function HomeScreen() {
   const planData = planId ? PLANES[planId.toLowerCase()] : null;
 
   const eliminarReserva = (reservaId, nombre, estado) => {
-    if (estado === "usado") {
-      Alert.alert("No podés cancelar", "Esta reserva ya fue utilizada.");
-      return;
-    }
+    const esUsada = estado === "usado";
     Alert.alert(
-      "Cancelar reserva",
-      `¿Seguro que querés cancelar la reserva de ${nombre}?`,
+      esUsada ? "Eliminar de tu vista" : "Cancelar reserva",
+      esUsada
+        ? `¿Querés eliminar esta entrada de tu historial? El gimnasio seguirá viéndola.`
+        : `¿Seguro que querés cancelar la reserva de ${nombre}?`,
       [
         { text: "No", style: "cancel" },
         {
-          text: "Sí, cancelar",
+          text: esUsada ? "Sí, eliminar" : "Sí, cancelar",
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, "reservas", reservaId));
+              if (esUsada) {
+                await updateDoc(doc(db, "reservas", reservaId), { ocultaParaUsuario: true });
+              } else {
+                await deleteDoc(doc(db, "reservas", reservaId));
+              }
               setReservas((prev) => prev.filter((r) => r.id !== reservaId));
             } catch (e) {
               console.error("Error eliminando reserva:", e);

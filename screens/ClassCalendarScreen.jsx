@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
-  collection, getDocs, addDoc, deleteDoc,
+  collection, getDocs, addDoc, deleteDoc, updateDoc,
   doc, query, where, serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
@@ -231,25 +231,28 @@ export default function ClassCalendarScreen({ route, navigation }) {
     );
     if (!reserva) return;
 
-    if (reserva.estado === "usado") {
-      Alert.alert("No podés cancelar", "Esta clase ya fue validada.");
-      return;
-    }
+    const esUsada = reserva.estado === "usado";
 
     Alert.alert(
-      "Cancelar inscripción",
-      "¿Seguro que querés cancelar tu lugar en esta clase?",
+      esUsada ? "Eliminar de tu vista" : "Cancelar inscripción",
+      esUsada
+        ? "¿Querés eliminar esta clase de tu historial? El gimnasio seguirá viéndola."
+        : "¿Seguro que querés cancelar tu lugar en esta clase?",
       [
         { text: "No", style: "cancel" },
         {
-          text: "Sí, cancelar",
+          text: esUsada ? "Sí, eliminar" : "Sí, cancelar",
           style: "destructive",
           onPress: async () => {
             setBusy(true);
             try {
-              await deleteDoc(doc(db, "reservas", reserva.id));
+              if (esUsada) {
+                await updateDoc(doc(db, "reservas", reserva.id), { ocultaParaUsuario: true });
+              } else {
+                await deleteDoc(doc(db, "reservas", reserva.id));
+              }
               setReservas((prev) => prev.filter((r) => r.id !== reserva.id));
-              showSnackbar("Inscripción cancelada.", "success");
+              showSnackbar(esUsada ? "Eliminado de tu historial." : "Inscripción cancelada.", "success");
             } catch (e) {
               showSnackbar("No se pudo cancelar. Intentá de nuevo.");
             } finally {

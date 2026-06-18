@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { auth, db } from "../firebaseConfig";
 
 const C = {
@@ -41,7 +42,7 @@ export default function GymOwnerHomeScreen({ navigation }) {
   const [nombreGimnasio, setNombreGimnasio] = useState("");
   const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null, saldoPendiente: null });
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const fetchData = async () => {
       try {
         const user = auth.currentUser;
@@ -95,7 +96,7 @@ export default function GymOwnerHomeScreen({ navigation }) {
     };
 
     fetchData();
-  }, []);
+  }, [])));
 
   if (loading) {
     return (
