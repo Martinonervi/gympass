@@ -41,7 +41,7 @@ export default function BottomTabs({ theme, setIsSignedIn }) {
         }}
       />
       <Tab.Screen name="PassTab" component={PassScreen}
-        options={{ tabBarLabel: 'Mi Pase', tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode" color={color} size={24} /> }} />
+        options={{ tabBarLabel: 'Mi Pase', tabBarIcon: ({ color }) => <Ionicons name="card-outline" color={color} size={24} /> }} />
       <Tab.Screen name="ProfileTab"
         options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ color }) => <Ionicons name="person-outline" color={color} size={24} /> }}>
           {props => <ProfileScreen {...props} setIsSignedIn={setIsSignedIn} userRole="usuario" />}

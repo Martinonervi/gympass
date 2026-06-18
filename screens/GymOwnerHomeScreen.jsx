@@ -39,7 +39,7 @@ export default function GymOwnerHomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [nombreGimnasio, setNombreGimnasio] = useState("");
-  const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null });
+  const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null, saldoPendiente: null });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,7 +55,9 @@ export default function GymOwnerHomeScreen({ navigation }) {
         ]);
 
         if (gymSnap.exists()) {
-          setNombreGimnasio(gymSnap.data().nombreGimnasio || "");
+          const gymData = gymSnap.data();
+          setNombreGimnasio(gymData.nombreGimnasio || "");
+          setStats((prev) => ({ ...prev, saldoPendiente: gymData.saldoPendiente ?? 0 }));
         }
 
         const todayStart = new Date();
@@ -79,11 +81,12 @@ export default function GymOwnerHomeScreen({ navigation }) {
         });
         const reseñaPromedio = countStars > 0 ? (totalStars / countStars).toFixed(1) : null;
 
-        setStats({
+        setStats((prev) => ({
+          ...prev,
           reservasHoy,
           clasesActivas: clasesSnap.size,
           reseñaPromedio,
-        });
+        }));
       } catch (err) {
         console.log("GymOwnerHome fetch error:", err?.code || err?.message);
       } finally {
@@ -125,6 +128,13 @@ export default function GymOwnerHomeScreen({ navigation }) {
           label="Reseña prom."
           value={stats.reseñaPromedio !== null ? stats.reseñaPromedio : "—"}
         />
+      </View>
+
+      <View style={styles.saldoCard}>
+        <Text style={styles.saldoLabel}>SALDO PENDIENTE DE COBRO</Text>
+        <Text style={styles.saldoValue}>
+          ${(stats.saldoPendiente ?? 0).toLocaleString("es-AR")}
+        </Text>
       </View>
 
       <Text style={styles.sectionLabel}>ACCIONES RÁPIDAS</Text>
@@ -215,6 +225,26 @@ const styles = StyleSheet.create({
   statValue: {
     color: C.green,
     fontSize: 22,
+    fontWeight: "700",
+  },
+  saldoCard: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 0.5,
+    borderColor: "rgba(34,197,94,0.3)",
+    backgroundColor: "rgba(34,197,94,0.06)",
+  },
+  saldoLabel: {
+    color: C.muted,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  saldoValue: {
+    color: C.green,
+    fontSize: 28,
     fontWeight: "700",
   },
   sectionLabel: {

@@ -207,11 +207,15 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
     setSendingReport(true);
     try {
       const user = auth.currentUser;
-      const coleccion = rol === "gimnasio" ? "reportes_gimnasios" : "reportes_usuarios";
+      const coleccion =
+        rol === "gimnasio" ? "reportes_gimnasios" :
+        rol === "empleador" ? "reportes_empleadores" :
+        "reportes_usuarios";
       await addDoc(collection(db, coleccion), {
         uid: user?.uid || null,
         email: email || null,
         ...(rol === "gimnasio" && user?.uid ? { gymId: user.uid } : {}),
+        ...(rol === "empleador" && user?.uid ? { empleadorId: user.uid } : {}),
         mensaje: reportText.trim(),
         creadoEn: serverTimestamp(),
         leido: false,
@@ -306,7 +310,7 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
           </TouchableOpacity>
         )}
 
-        {(rol === "usuario" || rol === "gimnasio") && (
+        {(rol === "usuario" || rol === "gimnasio" || rol === "empleador") && (
           <TouchableOpacity
             style={styles.reportButton}
             onPress={() => setReportModalVisible(true)}

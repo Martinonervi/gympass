@@ -27,8 +27,7 @@ export default function MapScreen({ route, navigation }) {
   useEffect(() => {
     fetchGyms()
       .then(setGyms)
-      .catch(console.error("Ocurrio un error al fetchear los gimnasios"))
-      .finally(() => setLoading(false));
+      .catch((err) => console.error("Ocurrio un error al fetchear los gimnasios", err));
   }, []);
 
   useEffect(() => {

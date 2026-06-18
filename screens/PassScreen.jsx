@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -22,6 +23,14 @@ import { revisarVencimientoUsuario } from "../utils/suscripcionUsuario";
 const BACKEND_URL = "https://gympass-production.up.railway.app";
 
 // ─── Plan constants ───────────────────────────────────────────────────────────
+const PLAN_RANK = { classic: 1, platinum: 2, black: 3 };
+
+const BENEFICIOS_NUEVOS = {
+  "classic→platinum": ["Acceso a gimnasios Platinum", "Reserva de clases grupales"],
+  "classic→black": ["Acceso a todos los gimnasios", "Múltiples pases por día", "Reserva de clases grupales"],
+  "platinum→black": ["Acceso a todos los gimnasios", "Múltiples pases por día"],
+};
+
 const PLANES = [
   {
     id: "classic",
@@ -116,6 +125,7 @@ export default function PassScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [planActivo, setPlanActivo] = useState(null);
   const [planVence, setPlanVence] = useState(null);
+  const [upgradeTarget, setUpgradeTarget] = useState(null);
   const { snackbar, showSnackbar } = useSnackbar();
 
   const fetchPlan = useCallback(async () => {
@@ -177,6 +187,16 @@ export default function PassScreen() {
     return false;
   }
 
+  function handlePlanPress(planId) {
+    if (planId === planActivo) return;
+    const isUpgrade = planActivo && PLAN_RANK[planId] > PLAN_RANK[planActivo];
+    if (isUpgrade) {
+      setUpgradeTarget(PLANES.find((p) => p.id === planId));
+      return;
+    }
+    selectPlan(planId);
+  }
+
   async function selectPlan(planId) {
     if (planId === planActivo) return;
     const user = auth.currentUser;
@@ -216,13 +236,9 @@ export default function PassScreen() {
         // haberse hecho (lo confirma el webhook). Verificamos EN SEGUNDO PLANO
         // para no bloquear los botones mientras esperamos al webhook.
         esperarAcreditacion(user.uid, planId).then((acreditado) => {
-          if (acreditado) {
-            setPlanActivo(planId);
-            const plan = PLANES.find((p) => p.id === planId);
-            showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
-          } else {
-            fetchPlan();
-          }
+          const plan = PLANES.find((p) => p.id === planId);
+          if (acreditado) showSnackbar(`Plan ${plan?.nombre || ""} activado.`, "success");
+          fetchPlan();
         });
         return;
       }
@@ -255,6 +271,12 @@ export default function PassScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmUpgrade() {
+    const planId = upgradeTarget.id;
+    setUpgradeTarget(null);
+    selectPlan(planId);
   }
 
   function confirmCancel() {
@@ -365,7 +387,7 @@ export default function PassScreen() {
             <TouchableOpacity
               key={plan.id}
               style={[styles.planCard, isActive && { borderColor: plan.color, borderWidth: 2 }]}
-              onPress={() => selectPlan(plan.id)}
+              onPress={() => handlePlanPress(plan.id)}
               disabled={saving}
               activeOpacity={0.8}
             >
@@ -399,6 +421,102 @@ export default function PassScreen() {
       </ScrollView>
 
       <Snackbar message={snackbar.message} type={snackbar.type} visible={snackbar.visible} />
+
+      <Modal
+        visible={!!upgradeTarget}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setUpgradeTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+
+            <Text style={styles.modalTitle}>Actualizás tu plan</Text>
+            <Text style={styles.modalSubtitle}>Confirmá el cambio para ir al pago</Text>
+
+            {upgradeTarget && (() => {
+              const actual = PLANES.find((p) => p.id === planActivo);
+              const nuevo = upgradeTarget;
+              const diff = nuevo.precio - (actual?.precio || 0);
+              const key = `${planActivo}→${nuevo.id}`;
+              const beneficiosNuevos = BENEFICIOS_NUEVOS[key] || nuevo.beneficios;
+              const diasRestantes = planVence
+                ? Math.max(0, Math.ceil((planVence - new Date()) / (1000 * 60 * 60 * 24)))
+                : null;
+
+              return (
+                <>
+                  <View style={styles.planCompare}>
+                    <View style={styles.planCompareSide}>
+                      <Text style={styles.planCompareLabel}>Actual</Text>
+                      <Text style={[styles.planCompareName, { color: actual?.color || COLORS.textMuted }]}>
+                        {actual?.nombre || "—"}
+                      </Text>
+                      <Text style={styles.planComparePrecio}>${(actual?.precio || 0).toLocaleString("es-AR")}/mes</Text>
+                    </View>
+                    <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.green} />
+                    <View style={[styles.planCompareSide, styles.planCompareSideNew, { borderColor: nuevo.color }]}>
+                      <Text style={styles.planCompareLabel}>Nuevo</Text>
+                      <Text style={[styles.planCompareName, { color: nuevo.color }]}>{nuevo.nombre}</Text>
+                      <Text style={styles.planComparePrecio}>${nuevo.precio.toLocaleString("es-AR")}/mes</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionLabel}>LO QUE GANÁS</Text>
+                    {beneficiosNuevos.map((b, i) => (
+                      <View key={i} style={styles.benefitRow}>
+                        <MaterialCommunityIcons name="check-circle-outline" size={15} color={COLORS.green} />
+                        <Text style={styles.modalBenefitText}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {diasRestantes !== null && (
+                    <View style={styles.warnBanner}>
+                      <MaterialCommunityIcons name="alert-circle-outline" size={15} color={COLORS.amber} />
+                      <Text style={styles.warnText}>
+                        Tu plan {actual?.nombre} se cancela al confirmar.{" "}
+                        <Text style={styles.warnMuted}>Quedan {diasRestantes} días sin usar.</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.diffRow}>
+                    <Text style={styles.diffLabel}>
+                      Por solo{" "}
+                      <Text style={styles.diffAmount}>
+                        ${diff.toLocaleString("es-AR")}/mes más
+                      </Text>
+                      {" "}accedés a {nuevo.nombre}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.confirmBtn, { backgroundColor: nuevo.color }]}
+                    onPress={confirmUpgrade}
+                    disabled={saving}
+                  >
+                    {saving
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.confirmBtnText}>Confirmar y pagar</Text>
+                    }
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cancelModalBtn}
+                    onPress={() => setUpgradeTarget(null)}
+                    disabled={saving}
+                  >
+                    <Text style={styles.cancelModalBtnText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -412,6 +530,7 @@ const COLORS = {
   text: "#ffffff",
   textMuted: "#94a3b8",
   error: "#ef4444",
+  amber: "#f59e0b",
 };
 
 const styles = StyleSheet.create({
@@ -466,6 +585,151 @@ const styles = StyleSheet.create({
   },
   planActionText: { color: COLORS.text, fontSize: 14, fontWeight: "700" },
 
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  modalSheet: {
+    backgroundColor: "#111827",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 22,
+    paddingBottom: 36,
+    borderTopWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 18,
+  },
+  modalTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  planCompare: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  planCompareSide: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  planCompareSideNew: {
+    borderWidth: 1.5,
+  },
+  planCompareLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    marginBottom: 3,
+  },
+  planCompareName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  planComparePrecio: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+  modalSection: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  modalSectionLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  modalBenefitText: {
+    color: COLORS.text,
+    fontSize: 13,
+    flex: 1,
+  },
+  warnBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(245,158,11,0.07)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 0.5,
+    borderColor: "rgba(245,158,11,0.25)",
+  },
+  warnText: {
+    color: COLORS.amber,
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 18,
+  },
+  warnMuted: {
+    color: COLORS.textMuted,
+  },
+  diffRow: {
+    backgroundColor: "rgba(34,197,94,0.07)",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 0.5,
+    borderColor: "rgba(34,197,94,0.2)",
+  },
+  diffLabel: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+  },
+  diffAmount: {
+    color: COLORS.green,
+    fontWeight: "700",
+  },
+  confirmBtn: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  confirmBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  cancelModalBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  cancelModalBtnText: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+  },
   snackbar: {
     position: "absolute", bottom: 30, left: 20, right: 20,
     borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16,

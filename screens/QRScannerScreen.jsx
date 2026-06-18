@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import { acreditarPaseGym } from "../utils/acreditaciones";
 
 const COLORS = {
   bg:       "#0f1520",
@@ -73,6 +74,7 @@ export default function QRScannerScreen({ navigation }) {
         return;
       }
 
+      await acreditarPaseGym(reserva, user.uid);
       await updateDoc(doc(db, "reservas", qrData.reservaId), {
         estado: "usado",
         validadoEn: serverTimestamp(),

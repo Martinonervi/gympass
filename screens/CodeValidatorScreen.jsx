@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import { acreditarPaseGym } from "../utils/acreditaciones";
 import DismissKeyboard from "../components/DismissKeyboard";
 
 const COLORS = {
@@ -67,6 +68,7 @@ export default function CodeValidatorScreen({ navigation }) {
         return;
       }
 
+      await acreditarPaseGym(reserva, user.uid);
       await updateDoc(doc(db, "reservas", match.id), {
         estado: "usado",
         validadoEn: serverTimestamp(),
