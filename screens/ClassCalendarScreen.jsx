@@ -231,6 +231,11 @@ export default function ClassCalendarScreen({ route, navigation }) {
     );
     if (!reserva) return;
 
+    if (reserva.estado === "usado") {
+      Alert.alert("No podés cancelar", "Esta clase ya fue validada.");
+      return;
+    }
+
     Alert.alert(
       "Cancelar inscripción",
       "¿Seguro que querés cancelar tu lugar en esta clase?",

@@ -231,7 +231,11 @@ export default function HomeScreen() {
 
   const planData = planId ? PLANES[planId.toLowerCase()] : null;
 
-  const eliminarReserva = (reservaId, nombre) => {
+  const eliminarReserva = (reservaId, nombre, estado) => {
+    if (estado === "usado") {
+      Alert.alert("No podés cancelar", "Esta reserva ya fue utilizada.");
+      return;
+    }
     Alert.alert(
       "Cancelar reserva",
       `¿Seguro que querés cancelar la reserva de ${nombre}?`,
@@ -634,7 +638,7 @@ export default function HomeScreen() {
                   ) : null}
                 </View>
                 <TouchableOpacity
-                  onPress={() => eliminarReserva(res.id, esClase ? (res.actividad || res.nombreClase || 'Clase') : res.nombreGimnasio)}
+                  onPress={() => eliminarReserva(res.id, esClase ? (res.actividad || res.nombreClase || 'Clase') : res.nombreGimnasio, res.estado)}
                   style={styles.deleteBtn}
                 >
                   <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />

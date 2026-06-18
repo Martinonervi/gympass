@@ -26,13 +26,22 @@ const COLORS = {
 };
 
 const TABS = [
-  { key: "todos",  label: "Todos" },
-  { key: "pases",  label: "Pases" },
-  { key: "clases", label: "Clases" },
+  { key: "todos",     label: "Todos" },
+  { key: "pases",     label: "Pases" },
+  { key: "clases",    label: "Clases" },
+  { key: "validadas", label: "Validadas" },
 ];
 
 function formatFecha(timestamp) {
   if (!timestamp?.seconds) return "";
+  return new Date(timestamp.seconds * 1000).toLocaleDateString("es-AR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function formatValidadoEn(timestamp) {
+  if (!timestamp?.seconds) return null;
   return new Date(timestamp.seconds * 1000).toLocaleDateString("es-AR", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -140,10 +149,11 @@ function RefreshBanner() {
 }
 
 export default function GymReservationsScreen({ navigation }) {
-  const [reservas, setReservas]   = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [reservas, setReservas]     = useState([]);
+  const [validadas, setValidadas]   = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("todos");
+  const [activeTab, setActiveTab]   = useState("todos");
 
   const fetchReservas = async ({ isRefresh = false } = {}) => {
     if (isRefresh) setRefreshing(true);
@@ -177,11 +187,18 @@ export default function GymReservationsScreen({ navigation }) {
         return false;
       };
 
-      const data = snap.docs
-        .filter((d) => !isExpired(d.data()))
-        .map((d) => ({ id: d.id, ...d.data() }))
+      const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const usadas = allDocs
+        .filter((r) => r.estado === "usado")
+        .sort((a, b) => (b.validadoEn?.seconds || 0) - (a.validadoEn?.seconds || 0));
+
+      const activas = allDocs
+        .filter((r) => r.estado !== "usado" && !isExpired(r))
         .sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
-      setReservas(data);
+
+      setReservas(activas);
+      setValidadas(usadas);
     } catch (e) {
       console.error("Error cargando reservas:", e);
     } finally {
@@ -254,6 +271,40 @@ export default function GymReservationsScreen({ navigation }) {
     );
   };
 
+  const renderValidadas = () => (
+    <FlatList
+      data={validadas}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={styles.list}
+      ListEmptyComponent={<EmptyState mensaje="Todavía no validaste ninguna entrada." />}
+      refreshControl={refreshControl}
+      renderItem={({ item }) => (
+        <View style={[styles.card, styles.cardValidada]}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons
+              name={item.tipo === "clase" ? "account-group" : "ticket-confirmation-outline"}
+              size={18}
+              color={COLORS.green}
+            />
+            <Text style={styles.cardTipo}>
+              {item.tipo === "clase"
+                ? `Clase: ${item.actividad || item.nombreClase || "Clase"}`
+                : "Pase libre"}
+            </Text>
+            <Text style={styles.cardCode}>#{item.id.slice(-6).toUpperCase()}</Text>
+          </View>
+          <Text style={styles.cardUsuario}>{item.emailUsuario || item.nombreUsuario || "Usuario"}</Text>
+          {formatValidadoEn(item.validadoEn) && (
+            <View style={styles.validadaRow}>
+              <MaterialCommunityIcons name="check-circle-outline" size={13} color={COLORS.green} />
+              <Text style={styles.validadaText}>Validada el {formatValidadoEn(item.validadoEn)}</Text>
+            </View>
+          )}
+        </View>
+      )}
+    />
+  );
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -263,7 +314,7 @@ export default function GymReservationsScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.title}>Reservas recibidas</Text>
         <View style={styles.countRow}>
-          <Text style={styles.countText}>{pases.length} pases · {clases.length} clases</Text>
+          <Text style={styles.countText}>{pases.length} pases · {clases.length} clases · {validadas.length} validadas</Text>
         </View>
       </View>
 
@@ -274,7 +325,8 @@ export default function GymReservationsScreen({ navigation }) {
         <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 40 }} />
       ) : activeTab === "todos" ? renderTodos()
         : activeTab === "pases" ? renderPases()
-        : renderClases()
+        : activeTab === "clases" ? renderClases()
+        : renderValidadas()
       }
     </SafeAreaView>
   );
@@ -376,6 +428,10 @@ const styles = StyleSheet.create({
   claseUserNombre: { color: COLORS.text, fontSize: 14, flex: 1 },
   claseUserFecha: { color: COLORS.textMuted, fontSize: 11 },
   claseUserCode: { color: COLORS.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+
+  cardValidada: { borderColor: "#22c55e44" },
+  validadaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
+  validadaText: { color: COLORS.green, fontSize: 12 },
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 60 },
   emptyText: { color: COLORS.textMuted, fontSize: 16 },
