@@ -5,12 +5,12 @@ App móvil que conecta a empleados de empresas con una red de gimnasios, al esti
 **Gestión del Desarrollo de Sistemas Informáticos — Cátedra Fontela — 1C2026 — Grupo 9**
 
 Integrantes del grupo:
-- Martino Nervi
-- Tomas Pérez D'angelo
-- Francisco Serrano
-- Juan Ignacio Moore
-- Juan Pablo Pessat
-- Jeanne Lefrais
+- Martino Nervi - 111829
+- Tomas Pérez D'angelo - 111834
+- Francisco Serrano - 111813
+- Juan Ignacio Moore - 112479
+- Juan Pablo Pessat - 112095
+- Jeanne Lefrais - Intercambio
 
 ---
 
