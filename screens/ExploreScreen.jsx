@@ -75,7 +75,7 @@ export default function ExploreScreen({ navigation }) {
         const loadedGyms = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setGyms(loadedGyms);
         // Fire congestion fetch in background (non-blocking)
-        fetchAllCongestion(loadedGyms.map((g) => g.id));
+        fetchAllCongestion(loadedGyms);
       } catch (error) {
         console.error("Error fetching gyms:", error);
       } finally {
@@ -85,10 +85,10 @@ export default function ExploreScreen({ navigation }) {
     fetchGyms();
   }, []);
 
-  async function fetchAllCongestion(gymIds) {
+  async function fetchAllCongestion(gymList) {
     try {
       const entries = await Promise.all(
-        gymIds.map(async (gymId) => [gymId, await fetchGymCongestion(gymId)])
+        gymList.map(async (g) => [g.id, await fetchGymCongestion(g.id, g.congestionDemo || 0)])
       );
       setCongestionMap(Object.fromEntries(entries));
     } catch (e) {

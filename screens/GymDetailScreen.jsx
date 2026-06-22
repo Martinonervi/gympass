@@ -118,12 +118,13 @@ export default function GymDetailScreen({ route, navigation }) {
   };
 
   const fetchCongestion = async () => {
-    const level = await fetchGymCongestion(gymId);
+    const level = await fetchGymCongestion(gymId, gymData?.congestionDemo || 0);
     setCongestionLevel(level);
   };
 
   useEffect(() => { if (gymId) fetchData(); }, [gymId]);
-  useEffect(() => { if (gymId) fetchCongestion(); }, [gymId]);
+  // Recalcula la congestión cuando llegan los datos del gym (incluye nivel demo).
+  useEffect(() => { if (gymId && gymData) fetchCongestion(); }, [gymId, gymData]);
 
   const reservarPase = async () => {
     const user = auth.currentUser;
