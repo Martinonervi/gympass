@@ -12,6 +12,7 @@ import { doc, getDoc, getDocs, collection, query, where } from "firebase/firesto
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { calcularGananciaGym } from "../utils/gananciaGym";
 import { auth, db } from "../firebaseConfig";
 
 const C = {
@@ -61,8 +62,12 @@ export default function GymOwnerHomeScreen({ navigation }) {
       if (gymSnap.exists()) {
         const gymData = gymSnap.data();
         setNombreGimnasio(gymData.nombreGimnasio || "");
-        setStats((prev) => ({ ...prev, saldoPendiente: gymData.saldoPendiente ?? 0 }));
       }
+
+      // Ganancia estimada del mes: 3% de la cuota de cada usuario, repartido
+      // entre los gimnasios que visitó (se calcula al leer, no se acumula).
+      const gananciaMes = await calcularGananciaGym(user.uid);
+      setStats((prev) => ({ ...prev, saldoPendiente: gananciaMes }));
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -143,9 +148,12 @@ export default function GymOwnerHomeScreen({ navigation }) {
       </View>
 
       <View style={styles.saldoCard}>
-        <Text style={styles.saldoLabel}>SALDO PENDIENTE DE COBRO</Text>
+        <Text style={styles.saldoLabel}>GANANCIA ESTIMADA DEL MES</Text>
         <Text style={styles.saldoValue}>
           ${(stats.saldoPendiente ?? 0).toLocaleString("es-AR")}
+        </Text>
+        <Text style={styles.saldoHint}>
+          Estimada según los pases validados este mes.
         </Text>
       </View>
 
@@ -258,6 +266,12 @@ const styles = StyleSheet.create({
     color: C.green,
     fontSize: 28,
     fontWeight: "700",
+  },
+  saldoHint: {
+    color: C.muted,
+    fontSize: 11,
+    marginTop: 6,
+    lineHeight: 15,
   },
   sectionLabel: {
     color: C.muted,

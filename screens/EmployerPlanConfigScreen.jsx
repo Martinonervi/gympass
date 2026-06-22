@@ -29,9 +29,9 @@ const COLORS = {
 };
 
 const PLANES = {
-  Classic: 5000,
-  Platinum: 10000,
-  Black: 20000,
+  Classic: 40000,
+  Platinum: 60000,
+  Black: 80000,
 };
 
 // Meses que se cobran según el período (anual = 10 meses, 2 de descuento).

@@ -670,8 +670,8 @@ const styles = StyleSheet.create({
   photosScroll: { marginTop: 8, marginBottom: 8 },
   photoContainer: { position: "relative", marginRight: 12 },
   photo: { width: 100, height: 100, borderRadius: 12 },
-  removeButton: { position: "absolute", top: -6, right: -6, backgroundColor: COLORS.red, width: 24, height: 24, borderRadius: 12, justifyContent: "center", alignItems: "center" },
-  removeButtonText: { color: COLORS.text, fontSize: 12, fontWeight: "bold" },
+  removeButton: { position: "absolute", top: 4, right: 4, backgroundColor: COLORS.red, width: 18, height: 18, borderRadius: 9, justifyContent: "center", alignItems: "center" },
+  removeButtonText: { color: COLORS.text, fontSize: 10, fontWeight: "bold", lineHeight: 12 },
 
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
   modalCard: { backgroundColor: "#1a2535", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },

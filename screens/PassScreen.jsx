@@ -35,7 +35,7 @@ const PLANES = [
   {
     id: "classic",
     nombre: "Classic",
-    precio: 5000,
+    precio: 40000,
     color: "#64748b",
     beneficios: [
       "Acceso a gimnasios Classic",
@@ -45,7 +45,7 @@ const PLANES = [
   {
     id: "platinum",
     nombre: "Platinum",
-    precio: 10000,
+    precio: 60000,
     color: "#8b5cf6",
     beneficios: [
       "Acceso a gimnasios Classic y Platinum",
@@ -56,7 +56,7 @@ const PLANES = [
   {
     id: "black",
     nombre: "Black",
-    precio: 20000,
+    precio: 80000,
     color: "#f59e0b",
     beneficios: [
       "Acceso a todos los gimnasios",

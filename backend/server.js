@@ -15,7 +15,7 @@ const db = getFirestore();
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 
-const PRECIOS = { classic: 5000, platinum: 10000, black: 20000 };
+const PRECIOS = { classic: 40000, platinum: 60000, black: 80000 };
 const NOMBRES = { classic: "Plan Classic", platinum: "Plan Platinum", black: "Plan Black" };
 // Etiquetas con mayúscula inicial, igual a como se guarda planTipo en empleadores
 const PLAN_LABEL = { classic: "Classic", platinum: "Platinum", black: "Black" };

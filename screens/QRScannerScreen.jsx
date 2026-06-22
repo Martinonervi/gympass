@@ -7,7 +7,6 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
-import { acreditarPaseGym } from "../utils/acreditaciones";
 
 const COLORS = {
   bg:       "#0f1520",
@@ -74,7 +73,9 @@ export default function QRScannerScreen({ navigation }) {
         return;
       }
 
-      await acreditarPaseGym(reserva, user.uid);
+      // La ganancia del gym se calcula a partir de las reservas validadas
+      // (validadoEn), repartiendo el 3% de la cuota entre los gyms visitados.
+      // Solo marcamos la reserva como usada; la acreditación ya no es incremental.
       await updateDoc(doc(db, "reservas", qrData.reservaId), {
         estado: "usado",
         validadoEn: serverTimestamp(),
