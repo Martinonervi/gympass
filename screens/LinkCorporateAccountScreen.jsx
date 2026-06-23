@@ -22,6 +22,7 @@ import {
 import { auth, db } from "../firebaseConfig";
 import { useNavigation } from "@react-navigation/native";
 import DismissKeyboard from "../components/DismissKeyboard";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -107,9 +108,9 @@ export default function LinkCorporateAccountScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+      <ScreenHeader title="Vincular Cuenta" onBack={() => navigation.goBack()} />
       <DismissKeyboard>
       <View style={styles.container}>
-        <Text style={styles.title}>Vincular Cuenta</Text>
         <Text style={styles.subtitle}>
           Ingresá tu correo corporativo para acceder a los beneficios de tu empresa.
         </Text>
@@ -139,9 +140,6 @@ export default function LinkCorporateAccountScreen() {
             )}
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
       </View>
       </DismissKeyboard>
     </SafeAreaView>

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   StatusBar,
   ScrollView,
@@ -428,8 +429,8 @@ export default function PassScreen() {
         animationType="slide"
         onRequestClose={() => setUpgradeTarget(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+        <Pressable style={styles.modalOverlay} onPress={() => !saving && setUpgradeTarget(null)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHandle} />
 
             <Text style={styles.modalTitle}>Actualizás tu plan</Text>
@@ -514,8 +515,8 @@ export default function PassScreen() {
                 </>
               );
             })()}
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );

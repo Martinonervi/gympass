@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   StatusBar,
   ScrollView,
@@ -331,7 +332,11 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={styles.modalCard}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => { setReportModalVisible(false); setReportText(""); }}
+          />
+          <Pressable style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>Reportar un problema</Text>
             <Text style={styles.modalSubtitle}>
               Describí el problema. Nuestro equipo de soporte lo revisará.
@@ -369,7 +374,7 @@ export default function ProfileScreen({ setIsSignedIn, userRole }) {
             >
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
-          </View>
+          </Pressable>
         </KeyboardAvoidingView>
       </Modal>
 

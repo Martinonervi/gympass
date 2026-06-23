@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg:       "#0f1520",
@@ -106,6 +107,7 @@ export default function QRScannerScreen({ navigation }) {
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.safe}>
+        <ScreenHeader title="Validar QR" onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <MaterialCommunityIcons name="camera-off-outline" size={52} color={COLORS.textMuted} />
           <Text style={styles.permTitle}>Acceso a la cámara</Text>
@@ -114,9 +116,6 @@ export default function QRScannerScreen({ navigation }) {
           </Text>
           <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
             <Text style={styles.permBtnText}>Permitir cámara</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
-            <Text style={{ color: COLORS.green, fontSize: 15 }}>Volver</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -127,13 +126,7 @@ export default function QRScannerScreen({ navigation }) {
   if (result) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-            <Text style={styles.backText}>Volver</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Validar QR</Text>
-        </View>
+        <ScreenHeader title="Validar QR" onBack={() => navigation.goBack()} />
 
         <View style={styles.resultWrap}>
           <View style={[styles.resultCard, result.ok ? styles.resultOk : styles.resultErr]}>
@@ -169,13 +162,7 @@ export default function QRScannerScreen({ navigation }) {
   // ── Camera / scanning ─────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.backText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Validar QR</Text>
-      </View>
+      <ScreenHeader title="Validar QR" onBack={() => navigation.goBack()} />
 
       <View style={styles.cameraWrap}>
         <CameraView

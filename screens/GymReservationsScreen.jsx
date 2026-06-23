@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -307,15 +308,9 @@ export default function GymReservationsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.backText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Reservas recibidas</Text>
-        <View style={styles.countRow}>
-          <Text style={styles.countText}>{pases.length} pases · {clases.length} clases · {validadas.length} validadas</Text>
-        </View>
+      <ScreenHeader title="Reservas recibidas" onBack={() => navigation.goBack()} />
+      <View style={{ paddingHorizontal: 22, marginTop: -4, marginBottom: 8 }}>
+        <Text style={styles.countText}>{pases.length} pases · {clases.length} clases · {validadas.length} validadas</Text>
       </View>
 
       <TabBar active={activeTab} onChange={setActiveTab} />

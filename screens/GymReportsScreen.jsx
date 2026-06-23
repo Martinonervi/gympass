@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg:        "#0f1520",
@@ -70,16 +71,13 @@ export default function GymReportsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.backText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Reportes de usuarios</Text>
-        {!loading && (
+      <ScreenHeader
+        title="Reportes de usuarios"
+        onBack={() => navigation.goBack()}
+        right={!loading ? (
           <Text style={styles.count}>{reportes.length} reporte{reportes.length !== 1 ? "s" : ""}</Text>
-        )}
-      </View>
+        ) : null}
+      />
       {refreshing && <RefreshBanner />}
 
       {loading ? (

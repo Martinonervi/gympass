@@ -19,6 +19,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -207,13 +208,8 @@ export default function RegisterScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title="Crear cuenta" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.title}>Crear cuenta</Text>
         <Text style={styles.subtitle}>
           Elegí el tipo de cuenta e ingresá tu email y contraseña.
         </Text>

@@ -20,6 +20,7 @@ import {
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ScreenHeader from "../components/ScreenHeader";
 
 
 const COLORS = {
@@ -226,14 +227,8 @@ export default function ChangeLoginDataScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title="Datos de inicio de sesión" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-        
-
-        <Text style={styles.title}>Datos de inicio de sesión</Text>
         <Text style={styles.subtitle}>
           Podés cambiar tu email, tu contraseña o ambos. Para confirmar
           cualquier cambio, te vamos a pedir tu contraseña actual.

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
@@ -358,8 +358,8 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setNotifModalVisible(false)}
       >
-        <View style={styles.notifOverlay}>
-          <View style={styles.notifPanel}>
+        <Pressable style={styles.notifOverlay} onPress={() => setNotifModalVisible(false)}>
+          <Pressable style={styles.notifPanel} onPress={() => {}}>
             <View style={styles.notifPanelHeader}>
               <Text style={styles.notifPanelTitle}>Notificaciones</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -416,8 +416,8 @@ export default function HomeScreen() {
                 })}
               </ScrollView>
             )}
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── Comprobante modal ───────────────────────────────────────────────── */}
@@ -427,8 +427,8 @@ export default function HomeScreen() {
         animationType="fade"
         onRequestClose={() => setComprobante(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.ticketContainer}>
+        <Pressable style={styles.modalOverlay} onPress={() => setComprobante(null)}>
+          <Pressable style={styles.ticketContainer} onPress={() => {}}>
             <View style={styles.ticketTop}>
               <MaterialCommunityIcons
                 name={esClaseComp ? 'account-group' : 'ticket-confirmation'}
@@ -523,8 +523,8 @@ export default function HomeScreen() {
             >
               <Text style={styles.ticketCloseBtnText}>Cerrar</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
       {refreshing && <RefreshBanner />}
       <ScrollView

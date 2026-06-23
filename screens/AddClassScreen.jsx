@@ -21,6 +21,7 @@ import {
   doc, getDoc, updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -330,11 +331,8 @@ export default function AddClassScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+        <ScreenHeader title={isEditMode ? "Editar clase" : "Agregar clase"} onBack={() => navigation.goBack()} />
         <ScrollView contentContainerStyle={styles.container}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-            <Text style={styles.back}>Volver</Text>
-          </TouchableOpacity>
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="dumbbell" size={48} color={COLORS.border} />
             <Text style={styles.emptyTitle}>Sin actividades cargadas</Text>
@@ -357,13 +355,8 @@ export default function AddClassScreen({ route, navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title={isEditMode ? "Editar clase" : "Agregar clase"} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.title}>{isEditMode ? "Editar clase" : "Agregar clase"}</Text>
         <Text style={styles.subtitle}>
           {isEditMode ? "Modificá los detalles de la clase." : "Configurá los detalles de la nueva clase."}
         </Text>

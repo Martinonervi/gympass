@@ -8,6 +8,7 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useFocusEffect } from "@react-navigation/native";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const C = {
   bg:       "#0f1520",
@@ -155,14 +156,11 @@ export default function HistorialScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color={C.green} />
-          <Text style={styles.backText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Mis Reservas</Text>
-        <Text style={styles.sub}>{activas.length} activas · {usadas.length} usadas</Text>
-      </View>
+      <ScreenHeader
+        title="Mis Reservas"
+        onBack={() => navigation.goBack()}
+        right={<Text style={styles.sub}>{activas.length} act · {usadas.length} usadas</Text>}
+      />
 
       {/* Tab bar */}
       <View style={styles.tabBar}>

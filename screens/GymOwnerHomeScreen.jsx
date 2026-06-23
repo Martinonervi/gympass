@@ -16,7 +16,7 @@ import { calcularGananciaGym } from "../utils/gananciaGym";
 import { auth, db } from "../firebaseConfig";
 
 const C = {
-  bg: "#0d1117",
+  bg: "#0f1520",
   surface: "#111827",
   surfaceAlt: "#16a34a18",
   border: "#1e293b",

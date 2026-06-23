@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -246,20 +247,8 @@ export default function EditGymInfoScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title="Información del gimnasio" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={22}
-            color={COLORS.green}
-          />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.title}>Información del gimnasio</Text>
         <Text style={styles.subtitle}>
           Completá o actualizá los datos de tu gimnasio.
         </Text>

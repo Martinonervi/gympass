@@ -10,11 +10,13 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import * as WebBrowser from "expo-web-browser";
 import { auth, db } from "../firebaseConfig";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DismissKeyboard from "../components/DismissKeyboard";
+import ScreenHeader from "../components/ScreenHeader";
 
 const BACKEND_URL = "https://gympass-production.up.railway.app";
 
@@ -208,19 +210,14 @@ export default function EmployerPlanConfigScreen({ navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.flex1}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <DismissKeyboard>
        <View style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Configurar Plan</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ScreenHeader title="Configurar Plan" onBack={() => navigation.goBack()} />
 
       <View style={styles.content}>
         <Text style={styles.eyebrow}>PLAN CORPORATIVO</Text>
@@ -316,7 +313,8 @@ export default function EmployerPlanConfigScreen({ navigation }) {
       </View>
        </View>
       </DismissKeyboard>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -324,6 +322,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.bg,
+  },
+  flex1: {
+    flex: 1,
   },
   center: {
     justifyContent: "center",

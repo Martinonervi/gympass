@@ -20,6 +20,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, addDoc, query, where, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import * as ImagePicker from "expo-image-picker";
+import ScreenHeader from "../components/ScreenHeader";
 import { CLOUDINARY } from "../cloudinaryConfig";
 
 const uploadToCloudinary = async (uri, userId, index) => {
@@ -313,10 +314,13 @@ export default function ManageGymDetailsScreen({ navigation }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsMultipleSelection: true,
       quality: 0.7,
     });
-    if (!result.canceled) setFotos((prev) => [...prev, result.assets[0].uri]);
+    if (!result.canceled) {
+      const nuevas = result.assets.map((a) => a.uri);
+      setFotos((prev) => [...prev, ...nuevas]);
+    }
   };
 
   const handleRemovePhoto = (index) => {
@@ -371,13 +375,8 @@ export default function ManageGymDetailsScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title="Detalles del Gimnasio" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.title}>Detalles del Gimnasio</Text>
         <Text style={styles.subtitle}>Agregá fotos, descripción y actividades a tu perfil público.</Text>
 
         <View style={styles.card}>

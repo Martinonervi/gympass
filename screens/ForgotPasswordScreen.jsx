@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import DismissKeyboard from "../components/DismissKeyboard";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -50,14 +51,10 @@ export default function ForgotPasswordScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <ScreenHeader title="Recuperar contraseña" onBack={() => navigation.goBack()} />
       <DismissKeyboard>
       <View style={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>← Volver</Text>
-        </TouchableOpacity>
-
         <View style={styles.card}>
-          <Text style={styles.title}>Recuperar contraseña</Text>
           <Text style={styles.subtitle}>
             Ingresá tu email y te enviamos un link para restablecerla.
           </Text>

@@ -11,6 +11,7 @@ import {
   doc, query, where, serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg:        "#0f1520",
@@ -344,14 +345,8 @@ export default function ClassCalendarScreen({ route, navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.backText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{gymName}</Text>
-        <Text style={styles.subtitle}>Clases</Text>
-      </View>
+      <ScreenHeader title={gymName} onBack={() => navigation.goBack()} />
+      <Text style={[styles.subtitle, { paddingHorizontal: 20, marginTop: -6, marginBottom: 8 }]}>Clases</Text>
 
       {loading ? (
         <View style={styles.center}>

@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   Switch,
   Modal,
@@ -339,8 +340,11 @@ export default function GymReviewsScreen({ navigation }) {
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => { if (!submittingResponse) { setModalVisible(false); setResponseText(""); } }}
+        >
+          <Pressable style={styles.modalContent} onPress={() => {}}>
             <Text style={styles.modalTitle}>Responder Reseña</Text>
             {selectedReview && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
@@ -382,8 +386,8 @@ export default function GymReviewsScreen({ navigation }) {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
     </SafeAreaView>

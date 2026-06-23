@@ -27,6 +27,7 @@ import { auth, db } from "../firebaseConfig";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import * as XLSX from "xlsx";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg: "#0f1520",
@@ -338,13 +339,7 @@ export default function EmployerManageEmployeesScreen({ navigation }) {
         style={styles.flex1}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Nómina de Empleados</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <ScreenHeader title="Nómina de Empleados" onBack={() => navigation.goBack()} />
 
         <View style={styles.content}>
           {/* Dashboard Header */}
@@ -568,13 +563,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
+    paddingVertical: 16,
     color: COLORS.text,
-    fontSize: 14,
+    fontSize: 16,
   },
   addButton: {
     backgroundColor: COLORS.green,
     borderRadius: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -584,7 +581,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: COLORS.bg,
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 15,
   },
   csvButton: {
     flexDirection: "row",

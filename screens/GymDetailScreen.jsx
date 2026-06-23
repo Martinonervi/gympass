@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Pressable,
   Image,
   Alert,
   TextInput,
@@ -19,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from "firebase/firestore";
 import { fetchGymCongestion } from "../utils/congestion";
+import ScreenHeader from "../components/ScreenHeader";
 import QRCode from "react-native-qrcode-svg";
 import { auth, db } from "../firebaseConfig";
 import { canAccessGym } from "../utils/planes";
@@ -244,13 +246,12 @@ export default function GymDetailScreen({ route, navigation }) {
 
   if (!gymData) {
     return (
-      <SafeAreaView style={[styles.safe, styles.center]}>
+      <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-        <TouchableOpacity style={styles.backButtonTop} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.errorText}>No se encontró la información del gimnasio.</Text>
+        <ScreenHeader title="Gimnasio" onBack={() => navigation.goBack()} />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>No se encontró la información del gimnasio.</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -314,8 +315,8 @@ export default function GymDetailScreen({ route, navigation }) {
         animationType="fade"
         onRequestClose={() => setComprobante(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.ticketContainer}>
+        <Pressable style={styles.modalOverlay} onPress={() => setComprobante(null)}>
+          <Pressable style={styles.ticketContainer} onPress={() => {}}>
             <View style={styles.ticketTop}>
               <MaterialCommunityIcons name="ticket-confirmation" size={40} color={COLORS.green} />
               <Text style={styles.ticketTitle}>¡Reserva confirmada!</Text>
@@ -373,9 +374,25 @@ export default function GymDetailScreen({ route, navigation }) {
             >
               <Text style={styles.ticketCloseBtnText}>Listo</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
+
+      <ScreenHeader
+        title={nombre}
+        onBack={() => navigation.goBack()}
+        right={gymPlan ? (
+          <View style={[styles.planBadge, {
+            backgroundColor: PLAN_COLORS[gymPlan] + "22",
+            borderColor: PLAN_COLORS[gymPlan],
+          }]}>
+            <MaterialCommunityIcons name="star-circle-outline" size={13} color={PLAN_COLORS[gymPlan]} />
+            <Text style={[styles.planBadgeText, { color: PLAN_COLORS[gymPlan] }]}>
+              {PLAN_LABELS[gymPlan]}
+            </Text>
+          </View>
+        ) : null}
+      />
 
       <ScrollView
         contentContainerStyle={styles.container}
@@ -390,25 +407,6 @@ export default function GymDetailScreen({ route, navigation }) {
           />
         }
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-          <Text style={styles.back}>Volver</Text>
-        </TouchableOpacity>
-
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>{nombre}</Text>
-          {gymPlan && (
-            <View style={[styles.planBadge, {
-              backgroundColor: PLAN_COLORS[gymPlan] + "22",
-              borderColor: PLAN_COLORS[gymPlan],
-            }]}>
-              <MaterialCommunityIcons name="star-circle-outline" size={13} color={PLAN_COLORS[gymPlan]} />
-              <Text style={[styles.planBadgeText, { color: PLAN_COLORS[gymPlan] }]}>
-                {PLAN_LABELS[gymPlan]}
-              </Text>
-            </View>
-          )}
-        </View>
         <View style={styles.ratingRow}>
           {avgRating !== null ? (
             <>
@@ -693,7 +691,11 @@ export default function GymDetailScreen({ route, navigation }) {
           style={styles.reporteOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={styles.reporteCard}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => { setReporteModalVisible(false); setReporteTexto(""); }}
+          />
+          <Pressable style={styles.reporteCard} onPress={() => {}}>
             <Text style={styles.reporteTitulo}>Reportar un problema</Text>
             <Text style={styles.reporteSubtitulo}>
               Describí el problema con <Text style={{ color: COLORS.text, fontWeight: "700" }}>{gymData?.nombreGimnasio}</Text>. El gimnasio recibirá tu reporte.
@@ -729,7 +731,7 @@ export default function GymDetailScreen({ route, navigation }) {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>

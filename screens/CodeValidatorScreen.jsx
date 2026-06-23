@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import DismissKeyboard from "../components/DismissKeyboard";
+import ScreenHeader from "../components/ScreenHeader";
 
 const COLORS = {
   bg:        "#0f1520",
@@ -103,13 +104,7 @@ export default function CodeValidatorScreen({ navigation }) {
       >
         <DismissKeyboard>
         <View style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.green} />
-            <Text style={styles.backText}>Volver</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Validar código</Text>
-        </View>
+        <ScreenHeader title="Validar código" onBack={() => navigation.goBack()} />
 
         <View style={styles.body}>
           {result ? (

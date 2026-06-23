@@ -16,7 +16,7 @@ import { auth, db } from "../firebaseConfig";
 import { revisarVencimientoEmpleador } from "../utils/suscripcionEmpleador";
 
 const C = {
-  bg: "#0d1117",
+  bg: "#0f1520",
   surface: "#111827",
   border: "#1e293b",
   green: "#22c55e",
