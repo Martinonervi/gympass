@@ -121,6 +121,7 @@ function RefreshBanner() {
 
 // ─── PassScreen ───────────────────────────────────────────────────────────────
 export default function PassScreen() {
+  const didLoadRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -165,8 +166,10 @@ export default function PassScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchPlan();
+      // Solo mostramos el spinner en la primera carga; en los focus siguientes
+      // refrescamos en segundo plano manteniendo el contenido visible.
+      if (!didLoadRef.current) setLoading(true);
+      fetchPlan().finally(() => { didLoadRef.current = true; });
     }, [fetchPlan])
   );
 

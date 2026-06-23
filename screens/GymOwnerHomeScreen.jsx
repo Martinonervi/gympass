@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -44,10 +44,13 @@ export default function GymOwnerHomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [nombreGimnasio, setNombreGimnasio] = useState("");
   const [stats, setStats] = useState({ reservasHoy: null, clasesActivas: null, reseñaPromedio: null, saldoPendiente: null });
+  const didLoadRef = useRef(false);
 
   const fetchData = useCallback(async ({ isRefresh = false } = {}) => {
+    // Spinner de pantalla completa solo en la primera carga; los focus
+    // siguientes refrescan en segundo plano sin tapar el contenido.
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!didLoadRef.current) setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
@@ -101,6 +104,7 @@ export default function GymOwnerHomeScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      didLoadRef.current = true;
     }
   }, []);
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, StatusBar, SafeAreaView, ActivityIndicator, Alert, Modal, RefreshControl,
@@ -76,13 +76,16 @@ export default function HomeScreen() {
   const [notificaciones, setNotificaciones] = useState([]);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const didLoadRef = useRef(false);
 
   // useFocusEffect recarga los datos cada vez que esta pestaña queda visible,
   // así el plan aparece actualizado después de comprarlo en PassScreen.
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      setLoadingPlan(true);
+      // Spinner solo en la primera carga; los focus siguientes refrescan
+      // en segundo plano sin tapar la tarjeta del plan ya cargada.
+      if (!didLoadRef.current) setLoadingPlan(true);
 
       const fetchUserData = async () => {
         try {
@@ -104,7 +107,7 @@ export default function HomeScreen() {
         } catch (e) {
           console.log('HomeScreen: no se pudo leer usuario', e?.code || e?.message);
         } finally {
-          if (active) setLoadingPlan(false);
+          if (active) { setLoadingPlan(false); didLoadRef.current = true; }
         }
 
         try {

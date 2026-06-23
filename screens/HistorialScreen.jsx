@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl,
@@ -89,10 +89,13 @@ export default function HistorialScreen({ navigation }) {
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("activas");
+  const didLoadRef = useRef(false);
 
   const fetchData = useCallback(async ({ isRefresh = false } = {}) => {
+    // El spinner de pantalla completa solo en la primera carga; los refrescos
+    // por focus se hacen en segundo plano sin tapar el contenido ya cargado.
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!didLoadRef.current) setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
@@ -138,6 +141,7 @@ export default function HistorialScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      didLoadRef.current = true;
     }
   }, []);
 
