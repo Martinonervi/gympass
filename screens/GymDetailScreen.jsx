@@ -95,7 +95,10 @@ export default function GymDetailScreen({ route, navigation }) {
         if (userSnap?.exists()) {
           const ud = userSnap.data();
           setUserRole(ud.rol);
-          setUserPlan(ud.plan || null);
+          // Normalizamos a minúscula: las cuentas vinculadas a una empresa
+          // pueden tener el plan capitalizado ("Black") y los planes/orden
+          // se comparan en minúscula.
+          setUserPlan(ud.plan ? ud.plan.toLowerCase() : null);
           const nombre = `${ud.nombre || ""} ${ud.apellido || ""}`.trim();
           setNombreUsuario(nombre || user?.email?.split("@")[0] || "");
         }

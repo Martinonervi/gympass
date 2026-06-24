@@ -79,7 +79,10 @@ export default function LinkCorporateAccountScreen() {
       }
 
       const employerData = employerDoc.data();
-      const planTipoDelEmpleador = employerData.planTipo || "Básico"; // Default if not found
+      // El plan se guarda SIEMPRE en minúscula ("classic"/"platinum"/"black"),
+      // igual que los planes individuales, porque así lo leen canAccessGym,
+      // PLAN_ORDER y el resto de la app. El empleador lo guarda capitalizado.
+      const planTipoDelEmpleador = (employerData.planTipo || "classic").toLowerCase();
 
       // 3. Actualizar el documento del usuario actual
       const currentUser = auth.currentUser;
@@ -95,7 +98,9 @@ export default function LinkCorporateAccountScreen() {
         correoCorporativo: formattedEmail,
       });
 
-      Alert.alert("¡Cuenta vinculada!", `Ahora tenés el plan ${planTipoDelEmpleador}`);
+      const planDisplay =
+        planTipoDelEmpleador.charAt(0).toUpperCase() + planTipoDelEmpleador.slice(1);
+      Alert.alert("¡Cuenta vinculada!", `Ahora tenés el plan ${planDisplay}`);
       navigation.goBack();
     } catch (error) {
       console.error("Error al vincular cuenta:", error);

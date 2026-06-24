@@ -97,6 +97,17 @@ export default function EmployerPlanConfigScreen({ navigation }) {
   };
 
   const handleConfirmPlan = async () => {
+    // Si la sesión no está activa (p. ej. cuenta recién creada sin verificar),
+    // avisamos con un mensaje claro en vez del error genérico de pago.
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert(
+        "Falta iniciar sesión",
+        "Tu sesión no está activa. Si te registraste recién, verificá tu email para activar la cuenta (revisá también la carpeta de spam) y volvé a iniciar sesión para continuar."
+      );
+      return;
+    }
+
     if (!employeeCount || Number(employeeCount) <= 0) {
       Alert.alert("Error", "Ingresá un número válido de empleados.");
       return;
@@ -116,8 +127,6 @@ export default function EmployerPlanConfigScreen({ navigation }) {
 
     try {
       setIsSubmitting(true);
-      const user = auth.currentUser;
-      if (!user) throw new Error("No hay usuario autenticado.");
 
       const employerRef = doc(db, "empleadores", user.uid);
 
